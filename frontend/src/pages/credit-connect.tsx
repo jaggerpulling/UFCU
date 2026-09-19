@@ -11,25 +11,46 @@ import {
   type NovaReport,
 } from "@/features/credit/nova-api";
 import { mountNovaConnect } from "@/features/credit/nova-connect";
-import { saveNovaResult } from "@/features/profile/member-profile";
+import { getSavedNovaResult, saveNovaResult } from "@/features/profile/member-profile";
+import { useScrollReset } from "@/lib/use-scroll-reset";
 
 type ViewState = "connecting" | "widget" | "processing" | "complete" | "error";
 const terminalFailures = new Set(["ERROR", "EXPIRED", "NOT_AUTHENTICATED", "NOT_FOUND"]);
+type StoredNovaInitialization = NovaInitialization & { initializedAt?: number };
 
-function readInitialization(): NovaInitialization | null {
+function readInitialization(): StoredNovaInitialization | null {
   try {
     const stored = sessionStorage.getItem("verified.nova.initialization");
-    return stored ? (JSON.parse(stored) as NovaInitialization) : null;
+    if (!stored) return null;
+    const value = JSON.parse(stored) as Partial<StoredNovaInitialization>;
+    const valid = (value.provider === "demo_mock" || value.provider === "nova_sandbox")
+      && [value.providerLabel, value.token, value.publicToken, value.publicId, value.productId]
+        .every((field) => typeof field === "string" && field.length > 0)
+      && typeof value.expiresIn === "number";
+    if (!valid) return null;
+    if (value.initializedAt && Date.now() - value.initializedAt > value.expiresIn! * 1000) {
+      sessionStorage.removeItem("verified.nova.initialization");
+      return null;
+    }
+    return value as StoredNovaInitialization;
   } catch {
     return null;
   }
 }
 
+function readCompletedReport(initialization: StoredNovaInitialization | null) {
+  const saved = getSavedNovaResult();
+  return saved && initialization && saved.publicToken === initialization.publicToken ? saved : null;
+}
+
 export function CreditConnectPage() {
   const navigate = useNavigate();
   const [initialization] = useState(readInitialization);
+  const [initialReport] = useState(() => readCompletedReport(initialization));
   const abortController = useRef<AbortController | null>(null);
+  const completing = useRef(false);
   const [viewState, setViewState] = useState<ViewState>(() => {
+    if (initialReport) return "complete";
     if (!initialization) return "error";
     return initialization.provider === "demo_mock" ? "widget" : "connecting";
   });
@@ -37,17 +58,20 @@ export function CreditConnectPage() {
   const [error, setError] = useState<string | null>(() =>
     initialization ? null : "Your connection session has expired. Return to the previous step to start again.",
   );
-  const [report, setReport] = useState<NovaReport | null>(null);
+  const [report, setReport] = useState<NovaReport | null>(initialReport);
+  useScrollReset(viewState);
 
-  const pollForReport = useCallback(async (publicToken: string) => {
+  const pollForReport = useCallback(async (publicToken: string, minimumDelay = 0) => {
     abortController.current?.abort();
     const controller = new AbortController();
     abortController.current = controller;
     setViewState("processing");
+    if (minimumDelay > 0) await abortableDelay(minimumDelay, controller.signal);
 
     for (let attempt = 0; attempt < 30; attempt += 1) {
       const status = await getNovaStatus(publicToken, controller.signal);
-      if (status.status === "SUCCESS") {
+      const normalizedStatus = status.status.toUpperCase();
+      if (normalizedStatus === "SUCCESS") {
         setMessage("Building your VERIFIED profile…");
         const result = await getNovaReport(publicToken, controller.signal);
         setReport(result);
@@ -55,24 +79,30 @@ export function CreditConnectPage() {
         setViewState("complete");
         return;
       }
-      if (terminalFailures.has(status.status)) {
+      if (terminalFailures.has(normalizedStatus)) {
         throw new Error(`Nova Credit could not complete this report (${status.substatus ?? status.status}).`);
       }
       setMessage(attempt < 2 ? "Finding your credit history…" : "Translating your financial profile…");
-      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+      await abortableDelay(2000, controller.signal);
     }
     throw new Error("Your report is still processing. Please try again shortly.");
   }, []);
 
   const handleSuccess = useCallback(async (publicToken: string, status?: string) => {
+    if (completing.current) return;
+    completing.current = true;
+    setMessage("Finding your credit history…");
+    setViewState("processing");
     try {
       await recordNovaCompletion(publicToken, status);
-      await pollForReport(publicToken);
+      await pollForReport(publicToken, initialization?.provider === "demo_mock" ? 650 : 0);
     } catch (caught) {
+      if (caught instanceof DOMException && caught.name === "AbortError") return;
       setError(caught instanceof Error ? caught.message : "The report could not be retrieved.");
       setViewState("error");
+      completing.current = false;
     }
-  }, [pollForReport]);
+  }, [initialization, pollForReport]);
 
   useEffect(() => {
     if (!initialization || initialization.provider === "demo_mock") return;
@@ -151,4 +181,14 @@ export function CreditConnectPage() {
       </div>
     </section>
   );
+}
+
+function abortableDelay(milliseconds: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(resolve, milliseconds);
+    signal.addEventListener("abort", () => {
+      window.clearTimeout(timer);
+      reject(new DOMException("Request cancelled", "AbortError"));
+    }, { once: true });
+  });
 }

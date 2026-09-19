@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import { routePaths } from "@/app/routes";
 import { Button } from "@/components";
 import { initializeNova } from "@/features/credit/nova-api";
-import { clearNovaSkipped, markNovaSkipped } from "@/features/profile/member-profile";
+import { clearNovaResult, clearNovaSkipped, getMemberProfile, markNovaSkipped } from "@/features/profile/member-profile";
+import { useScrollReset } from "@/lib/use-scroll-reset";
 
 type View = "question" | "consent";
 
@@ -13,20 +14,25 @@ export function CreditPage() {
   const [view, setView] = useState<View>("question");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [canStart] = useState(() => Object.keys(getMemberProfile().student).length > 0);
+  useScrollReset(view);
 
   async function consentAndConnect() {
     setLoading(true);
     setError(null);
     try {
       clearNovaSkipped();
+      clearNovaResult();
       const initialization = await initializeNova();
-      sessionStorage.setItem("verified.nova.initialization", JSON.stringify(initialization));
+      sessionStorage.setItem("verified.nova.initialization", JSON.stringify({ ...initialization, initializedAt: Date.now() }));
       navigate(routePaths.creditConnection);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The connection could not be started.");
       setLoading(false);
     }
   }
+
+  if (!canStart) return <Navigate to={routePaths.school} replace />;
 
   if (view === "consent") {
     return (

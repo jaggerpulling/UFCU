@@ -7,6 +7,7 @@ import { MockPassportProvider } from "@/features/passport/mock-passport-provider
 import type { PassportIdentity, PassportScanProgress } from "@/features/passport/passport-provider";
 import { PassportVisual } from "@/features/passport/passport-visual";
 import { savePassportResult } from "@/features/profile/member-profile";
+import { useScrollReset } from "@/lib/use-scroll-reset";
 
 type ViewState = "ready" | "scanning" | "complete" | "error";
 
@@ -18,6 +19,7 @@ export function PassportPage() {
   const [viewState, setViewState] = useState<ViewState>("ready");
   const [progress, setProgress] = useState<PassportScanProgress | null>(null);
   const [identity, setIdentity] = useState<PassportIdentity | null>(null);
+  useScrollReset(viewState);
 
   useEffect(() => () => abortController.current?.abort(), []);
 

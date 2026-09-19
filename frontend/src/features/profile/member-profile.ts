@@ -64,22 +64,71 @@ export function savePassportResult(identity: PassportIdentity) {
   write(storageKeys.passport, identity);
 }
 
+export function getPassportResult(): PassportIdentity | null {
+  const value = read<PassportIdentity>(storageKeys.passport);
+  if (!value || typeof value !== "object") return null;
+
+  const requiredStrings: Array<keyof PassportIdentity> = [
+    "firstName",
+    "lastName",
+    "fullName",
+    "dateOfBirth",
+    "nationality",
+    "passportNumber",
+    "documentType",
+    "initials",
+  ];
+  return requiredStrings.every((key) => typeof value[key] === "string" && value[key].trim().length > 0)
+    ? value
+    : null;
+}
+
 export function saveSchoolResult(result: SchoolVerificationResult) {
   write(storageKeys.school, result);
 }
 
+export function getSchoolResult(): SchoolVerificationResult | null {
+  const value = read<SchoolVerificationResult>(storageKeys.school);
+  return value
+    && typeof value === "object"
+    && typeof value.verified === "boolean"
+    && typeof value.status === "string"
+    && typeof value.school === "string"
+    && typeof value.source === "string"
+    ? value
+    : null;
+}
+
 export function saveNovaResult(report: NovaReport) {
   write(storageKeys.nova, report);
-  sessionStorage.removeItem(storageKeys.novaSkipped);
+  remove(storageKeys.novaSkipped);
+}
+
+export function getSavedNovaResult(): NovaReport | null {
+  const value = read<NovaReport>(storageKeys.nova);
+  return value && typeof value === "object" ? value : null;
+}
+
+export function clearNovaResult() {
+  remove(storageKeys.nova);
 }
 
 export function markNovaSkipped() {
-  sessionStorage.removeItem(storageKeys.nova);
-  sessionStorage.setItem(storageKeys.novaSkipped, "true");
+  remove(storageKeys.nova);
+  try {
+    sessionStorage.setItem(storageKeys.novaSkipped, "true");
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsing contexts.
+  }
 }
 
 export function clearNovaSkipped() {
-  sessionStorage.removeItem(storageKeys.novaSkipped);
+  remove(storageKeys.novaSkipped);
+}
+
+export function clearOnboardingData() {
+  Object.values(storageKeys).forEach(remove);
+  remove("verified.nova.initialization");
 }
 
 export function saveFinancialGoals(goals: SavedFinancialGoals) {
@@ -102,10 +151,15 @@ export function getFinancialGoals(): SavedFinancialGoals {
 }
 
 export function getMemberProfile(): MemberProfile {
-  const passport = read<PassportIdentity>(storageKeys.passport);
-  const school = read<SchoolVerificationResult>(storageKeys.school);
-  const skippedNova = sessionStorage.getItem(storageKeys.novaSkipped) === "true";
-  const nova = skippedNova ? null : read<NovaReport>(storageKeys.nova);
+  const passport = getPassportResult();
+  const school = getSchoolResult();
+  let skippedNova = false;
+  try {
+    skippedNova = sessionStorage.getItem(storageKeys.novaSkipped) === "true";
+  } catch {
+    // Treat unavailable storage as an empty session.
+  }
+  const nova = skippedNova ? null : getSavedNovaResult();
 
   const profile = buildMemberProfile(passport, school, nova, skippedNova);
   profile.goals = getFinancialGoals().selected;
@@ -223,5 +277,17 @@ function read<T>(key: string): T | null {
 }
 
 function write(key: string, value: unknown) {
-  sessionStorage.setItem(key, JSON.stringify(value));
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // A failed demo storage write should not crash the active screen.
+  }
+}
+
+function remove(key: string) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsing contexts.
+  }
 }
