@@ -1,16 +1,17 @@
 import { createBrowserRouter } from "react-router-dom";
 
 import { AppShell } from "@/components";
-import { FoundationPage } from "@/pages/foundation";
 import { NotFoundPage } from "@/pages/not-found";
+import { PassportPage } from "@/pages/passport";
 import { RoutePlaceholder } from "@/pages/route-placeholder";
+import { WelcomePage } from "@/pages/welcome";
 
 export const router = createBrowserRouter([
   {
     element: <AppShell />,
     children: [
-      { index: true, element: <FoundationPage /> },
-      { path: "passport", element: <RoutePlaceholder stage="Identity" title="Establish your identity" /> },
+      { index: true, element: <WelcomePage /> },
+      { path: "passport", element: <PassportPage /> },
       { path: "school", element: <RoutePlaceholder stage="Student information" title="Connect your school" /> },
       { path: "school/authorize", element: <RoutePlaceholder stage="Student information" title="Verify your student information" /> },
       { path: "credit", element: <RoutePlaceholder stage="Financial history" title="Bring your credit history with you" /> },
