@@ -9,12 +9,13 @@ description = "FastAPI foundation for the VERIFIED UFCU onboarding prototype"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1.0",
+  "httpx>=0.28,<1.0",
   "uvicorn[standard]>=0.34,<1.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.28,<1.0",
+  "pytest-asyncio>=0.25,<1.0",
   "pytest>=8.3,<9.0",
   "ruff>=0.11,<1.0",
 ]
