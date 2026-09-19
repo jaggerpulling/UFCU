@@ -100,6 +100,13 @@ export function PassportPage() {
           </div>
         </div>
 
+        <div className="mb-7 rounded-lg border border-secondary bg-secondary-subtle p-4 text-body-sm text-primary">
+          <p className="font-semibold">How your passport details help</p>
+          <p className="mt-1 text-body">
+            We can use these details to verify your U.S. entry record, so you don’t need to upload other documents.
+          </p>
+        </div>
+
         <PassportVisual />
         {viewState === "error" ? (
           <p className="mt-4 rounded-md bg-negative-subtle p-3 text-body-sm text-negative" role="alert">
