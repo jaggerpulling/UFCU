@@ -4,6 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.config import settings
+from app.esignature.models import (
+    AgreementEnvelope,
+    AgreementEnvelopeRequest,
+    CompleteAgreementRequest,
+)
+from app.esignature.provider import ESignatureProvider, get_esignature_provider
 from app.identity.audit import consent_audit_log
 from app.identity.models import (
     SocureLivenessSubmissionRequest,
@@ -75,6 +81,38 @@ async def verify_school_enrollment(
     provider: StudentVerificationProvider = Depends(get_student_verification_provider),
 ) -> EnrollmentVerificationResult:
     return await provider.verify_enrollment(request)
+
+
+@router.post(
+    "/esignature/envelopes",
+    response_model=AgreementEnvelope,
+    response_model_by_alias=True,
+    tags=["esignature"],
+)
+async def create_agreement_envelope(
+    request: AgreementEnvelopeRequest,
+    provider: ESignatureProvider = Depends(get_esignature_provider),
+) -> AgreementEnvelope:
+    # The client receives an opaque envelope ID only; provider credentials stay server-side.
+    return await provider.create_envelope(request.agreement_version)
+
+
+@router.post(
+    "/esignature/envelopes/{envelope_id}/complete",
+    response_model=AgreementEnvelope,
+    response_model_by_alias=True,
+    tags=["esignature"],
+)
+async def complete_agreement_envelope(
+    envelope_id: str,
+    request: CompleteAgreementRequest,
+    provider: ESignatureProvider = Depends(get_esignature_provider),
+) -> AgreementEnvelope:
+    del request  # Consent is validated, but no signature image or text is retained.
+    envelope = await provider.complete_envelope(envelope_id)
+    if envelope is None:
+        raise HTTPException(status_code=404, detail="Agreement envelope not found")
+    return envelope
 
 
 def _nova_client() -> NovaClient:

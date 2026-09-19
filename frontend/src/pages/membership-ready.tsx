@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { routePaths } from "@/app/routes";
@@ -8,15 +8,71 @@ import {
   getMemberProfile,
   type MembershipRequirement,
 } from "@/features/profile/member-profile";
+import {
+  createAgreementEnvelope,
+  getAgreementSignature,
+  saveAgreementSignature,
+  type AgreementSignature,
+} from "@/features/esignature/esignature";
 
 export function MembershipReadyPage() {
   const navigate = useNavigate();
-  const readiness = useMemo(() => calculateMembershipReadiness(getMemberProfile()), []);
+  const [signature, setSignature] = useState(getAgreementSignature());
+  const [signingError, setSigningError] = useState<string | null>(null);
+  const [openingSigner, setOpeningSigner] = useState(false);
+  const readiness = calculateMembershipReadiness(getMemberProfile());
+
+  const receiveSignature = useCallback((result: AgreementSignature) => {
+    saveAgreementSignature(result);
+    setSignature(result);
+  }, []);
+
+  useEffect(() => {
+    function receiveMessage(event: MessageEvent<unknown>) {
+      if (event.origin !== window.location.origin || !event.data || typeof event.data !== "object") return;
+      const payload = event.data as { type?: string; result?: AgreementSignature };
+      if (payload.type === "ufcu-docusign-demo-complete" && payload.result?.agreementSigned === true) {
+        receiveSignature(payload.result);
+      }
+    }
+    window.addEventListener("message", receiveMessage);
+    return () => window.removeEventListener("message", receiveMessage);
+  }, [receiveSignature]);
+
+  async function openDocuSignDemo() {
+    setOpeningSigner(true);
+    setSigningError(null);
+    try {
+      const envelope = await createAgreementEnvelope();
+      const popup = window.open(
+        `${routePaths.docusignDemo}?envelopeId=${encodeURIComponent(envelope.envelopeId)}`,
+        "ufcu-docusign-demo",
+        "popup=yes,width=560,height=760",
+      );
+      if (!popup) throw new Error("popup_blocked");
+      popup.focus();
+    } catch {
+      setSigningError("We couldn’t open DocuSign — Demo. Please allow popups and try again.");
+    } finally {
+      setOpeningSigner(false);
+    }
+  }
 
   if (!readiness.isReady) {
     const nextRoute = readiness.requirements.find((item) => item.id === "identity" && !item.complete)
       ? routePaths.passport
       : routePaths.school;
+
+    if (readiness.requirements.find((item) => item.id === "required")?.complete) {
+      return (
+        <ReviewAndSign
+          error={signingError}
+          opening={openingSigner}
+          onReview={openDocuSignDemo}
+          signed={signature?.agreementSigned === true}
+        />
+      );
+    }
 
     return (
       <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
@@ -67,6 +123,35 @@ export function MembershipReadyPage() {
         <Button fullWidth onClick={() => navigate(routePaths.goals)}>
           Continue with UFCU
           <span aria-hidden="true">→</span>
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function ReviewAndSign({ error, opening, onReview, signed }: {
+  error: string | null;
+  opening: boolean;
+  onReview: () => void;
+  signed: boolean;
+}) {
+  return (
+    <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
+      <div className="flex-1">
+        <p className="text-caption font-semibold uppercase tracking-[0.16em] text-accent-darker">DocuSign — Demo</p>
+        <h1 className="mt-3 font-display text-display-md text-primary">Review & Sign</h1>
+        <p className="mt-3 text-body-md text-body">One final demo agreement is needed before this membership profile is ready.</p>
+        <div className="mt-7 rounded-lg border border-primary-subtle bg-canvas-soft p-5">
+          <p className="text-caption font-semibold uppercase tracking-[0.12em] text-mute">Sample terms — not actual UFCU legal language</p>
+          <p className="mt-3 text-body-sm text-body">This mock agreement confirms your demo onboarding profile. Official UFCU account terms, disclosures, and privacy notices would be provided before any real account is opened.</p>
+        </div>
+        {signed ? <p className="mt-5 text-body-sm font-semibold text-positive">Agreement signed ✓</p> : null}
+        {error ? <p className="mt-5 text-body-sm text-negative" role="alert">{error}</p> : null}
+      </div>
+      <div className="sticky bottom-0 mt-7 bg-canvas pb-2 pt-4">
+        <Button fullWidth onClick={onReview} disabled={opening || signed}>
+          {opening ? "Opening DocuSign — Demo…" : signed ? "Agreement signed ✓" : "Review & Sign with DocuSign"}
+          {!opening && !signed ? <span aria-hidden="true">↗</span> : null}
         </Button>
       </div>
     </section>

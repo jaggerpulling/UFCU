@@ -9,6 +9,7 @@ export const routePaths = {
   creditConnection: "/credit/connect",
   profile: "/profile",
   membershipReady: "/membership-ready",
+  docusignDemo: "/docusign-demo",
   goals: "/goals",
   guide: "/guide",
 } as const;

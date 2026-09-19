@@ -26,6 +26,14 @@ class Settings:
     # value through an API response or a VITE_* frontend environment variable.
     socure_api_key: str | None = getenv("SOCURE_API_KEY")
     socure_api_base_url: str | None = _clean_url(getenv("SOCURE_API_BASE_URL"))
+    # Reserved for a future embedded-signing adapter. These values are read only
+    # by server-side provider code and must never use a VITE_ prefix.
+    esignature_provider: Literal["mock_docusign"] = getenv(  # type: ignore[assignment]
+        "ESIGNATURE_PROVIDER", "mock_docusign"
+    ).lower()
+    docusign_integration_key: str | None = getenv("DOCUSIGN_INTEGRATION_KEY")
+    docusign_user_id: str | None = getenv("DOCUSIGN_USER_ID")
+    docusign_private_key: str | None = getenv("DOCUSIGN_PRIVATE_KEY")
     student_verification_provider: Literal["mock_nsc"] = getenv(  # type: ignore[assignment]
         "STUDENT_VERIFICATION_PROVIDER", "mock_nsc"
     ).lower()
@@ -46,6 +54,12 @@ class Settings:
     def nova_credentials_configured(self) -> bool:
         return all(
             (self.nova_client_id, self.nova_secret_key, self.nova_public_id, self.nova_product_id)
+        )
+
+    @property
+    def docusign_credentials_configured(self) -> bool:
+        return all(
+            (self.docusign_integration_key, self.docusign_user_id, self.docusign_private_key)
         )
 
     @property

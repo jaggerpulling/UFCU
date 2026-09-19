@@ -1,6 +1,7 @@
 import type { PassportIdentity } from "@/features/passport/passport-provider";
 import type { NovaReport } from "@/features/credit/nova-api";
 import type { EnrollmentVerificationResult } from "@/features/school/school-verification";
+import { getAgreementSignature } from "@/features/esignature/esignature";
 
 export type Source = "passport" | "school" | "nova_credit" | "self_reported" | "inferred" | "demo";
 
@@ -42,7 +43,7 @@ export interface SavedFinancialGoals {
   other?: string;
 }
 
-export type MembershipRequirementId = "identity" | "student" | "required" | "financial";
+export type MembershipRequirementId = "identity" | "student" | "required" | "agreement" | "financial";
 
 export interface MembershipRequirement {
   id: MembershipRequirementId;
@@ -67,6 +68,7 @@ const storageKeys = {
   nova: "verified.nova.report",
   novaSkipped: "verified.nova.skipped",
   goals: "verified.profile.goals",
+  agreement: "verified.esignature.agreement",
 } as const;
 
 export function saveDemoLivenessResult(result: DemoLivenessResult) {
@@ -278,11 +280,13 @@ export function calculateMembershipReadiness(profile: MemberProfile): Membership
   const requiredComplete = identityComplete && studentComplete;
   const creditHistory = profile.finances.internationalCreditHistory;
   const financialComplete = Boolean(creditHistory?.verified && creditHistory.value === true);
+  const agreementComplete = getAgreementSignature()?.agreementSigned === true;
 
   const requirements: MembershipRequirement[] = [
     { id: "identity", label: "Identity established", complete: identityComplete, required: true },
     { id: "student", label: "Student information verified", complete: studentComplete, required: true },
     { id: "required", label: "Required information complete", complete: requiredComplete, required: true },
+    { id: "agreement", label: "Membership agreement signed", complete: agreementComplete, required: true },
     { id: "financial", label: "Financial profile connected", complete: financialComplete, required: false },
   ];
   const completedCount = requirements.filter((requirement) => requirement.complete).length;
@@ -292,7 +296,7 @@ export function calculateMembershipReadiness(profile: MemberProfile): Membership
     completedCount,
     totalCount: requirements.length,
     completionPercent: Math.round((completedCount / requirements.length) * 100),
-    isReady: requiredComplete,
+    isReady: requiredComplete && agreementComplete,
   };
 }
 

@@ -14,6 +14,7 @@ import { SchoolAuthorizationPage } from "@/pages/school-authorization";
 import { SchoolPage } from "@/pages/school";
 import { WelcomePage } from "@/pages/welcome";
 import { SocureConsentPage } from "@/pages/socure-consent";
+import { DocuSignDemoPage } from "@/pages/docusign-demo";
 
 export const router = createBrowserRouter([
   {
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
       { path: "credit/connect", element: <CreditConnectPage /> },
       { path: "profile", element: <ProfilePage /> },
       { path: "membership-ready", element: <MembershipReadyPage /> },
+      { path: "docusign-demo", element: <DocuSignDemoPage /> },
       { path: "goals", element: <GoalsPage /> },
       { path: "guide", element: <GuidePage /> },
       { path: "*", element: <NotFoundPage /> },
