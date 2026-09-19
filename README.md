@@ -52,8 +52,9 @@ sharing and requires an explicit **Allow & Continue** action. **Not Now** makes 
 request. The browser posts only the approved legal name, date of birth, passport number, and
 nationality to `POST /api/identity/socure/verify`; it never calls Socure directly. After separate,
 explicit biometric consent, it captures one JPEG for each completed liveness challenge and sends
-those highly sensitive biometric images only to `POST /api/identity/socure/liveness`. Images stay
-in browser memory only for that handoff and are never placed in storage, logs, or the audit trail.
+those highly sensitive biometric images first to `POST /api/identity/socure/liveness`; only then
+does it post the approved identity fields to `/api/identity/socure/verify`. Images stay in browser
+memory only for that handoff and are never placed in storage, logs, or the audit trail.
 
 `IDENTITY_PROVIDER=mock_socure` is the default. `MockSocureVerificationProvider` implements the
 same `SocureVerificationProvider` boundary reserved for a future authenticated integration, but it

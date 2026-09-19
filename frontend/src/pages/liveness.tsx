@@ -10,18 +10,16 @@ import {
   LivenessTracker,
   type LivenessProgress,
 } from "@/features/liveness/face-landmarker";
+import { holdLivenessImagesForConsent } from "@/features/liveness/liveness-evidence";
 import {
-  buildSocureLivenessSubmissionRequest,
-  socureVerificationProvider,
   type SocureLivenessImage,
 } from "@/features/identity/socure-verification";
 import {
   clearDemoLivenessResult,
-  getPassportResult,
   saveDemoLivenessResult,
 } from "@/features/profile/member-profile";
 
-type ViewState = "ready" | "loading" | "active" | "submitting" | "complete" | "error";
+type ViewState = "ready" | "loading" | "active" | "error";
 
 const challengeLabels = {
   center_face: "Center your face",
@@ -47,7 +45,7 @@ export function LivenessPage() {
   const [viewState, setViewState] = useState<ViewState>("ready");
   const [progress, setProgress] = useState<LivenessProgress>(initialProgress);
   const [errorMessage, setErrorMessage] = useState("");
-  const [biometricConsent, setBiometricConsent] = useState(false);
+  const [socureConsent, setSocureConsent] = useState(false);
 
   const stopCheck = useCallback(() => {
     runIdRef.current += 1;
@@ -137,8 +135,15 @@ export function LivenessPage() {
 
             if (nextProgress.current === null && nextProgress.completed.length === challenges.length) {
               stopCheck();
-              setViewState("submitting");
-              void submitLivenessEvidence();
+              holdLivenessImagesForConsent(livenessImagesRef.current);
+              livenessImagesRef.current = [];
+              saveDemoLivenessResult({
+                status: "verified_demo",
+                method: "webcam_liveness",
+                completedChallenges: [...challenges],
+                completedAt: new Date().toISOString(),
+              });
+              navigate(routePaths.socureConsent);
               return;
             }
           }
@@ -160,37 +165,10 @@ export function LivenessPage() {
     }
   }
 
-  async function submitLivenessEvidence() {
-    const identity = getPassportResult();
-    const images = livenessImagesRef.current;
-    try {
-      if (!identity || images.length !== challenges.length) {
-        throw new Error("Liveness evidence is incomplete.");
-      }
-      await socureVerificationProvider.submitLivenessImages(
-        buildSocureLivenessSubmissionRequest(identity, images),
-      );
-      // Drop all references immediately after the provider handoff. Do not persist
-      // images in sessionStorage, localStorage, state, logs, or analytics.
-      livenessImagesRef.current = [];
-      saveDemoLivenessResult({
-        status: "verified_demo",
-        method: "webcam_liveness",
-        completedChallenges: [...challenges],
-        completedAt: new Date().toISOString(),
-      });
-      setViewState("complete");
-    } catch {
-      livenessImagesRef.current = [];
-      setErrorMessage("We couldn’t securely send your liveness images. No images were retained. Please try again.");
-      setViewState("error");
-    }
-  }
-
   function continueWithoutCamera() {
     clearDemoLivenessResult();
     stopCheck();
-    navigate(routePaths.school);
+    navigate(routePaths.socureConsent);
   }
 
   return (
@@ -200,16 +178,13 @@ export function LivenessPage() {
           Identity · Demo step 2
         </p>
         <h1 className="mt-3 font-display text-display-md text-primary">
-          {viewState === "complete" ? "Demo liveness check complete" : "Check your live presence"}
+          Check your live presence
         </h1>
         <p className="mt-3 text-body-md text-body">
-          {viewState === "complete"
-            ? "You completed the camera challenges for this demo."
-            : "Use your camera to follow four quick prompts. Completion images are highly sensitive biometric data and will be sent through our backend to Socure for liveness verification."}
+          Complete the camera challenges before any identity data is sent to Socure. Afterward, you can review and authorize sharing your liveness images and approved passport details.
         </p>
 
-        {viewState !== "complete" ? (
-          <>
+        <>
             <div className="relative mt-6 aspect-[4/5] max-h-[28rem] overflow-hidden rounded-lg bg-primary">
               <video
                 ref={videoRef}
@@ -249,47 +224,33 @@ export function LivenessPage() {
               </p>
             ) : null}
             <p className="mt-4 text-caption text-mute">
-              Only one image per completed challenge is captured. Images are highly sensitive biometric data, held only in memory for this session, sent over the secure provider connection to Socure, and never saved by this app.
+              For your privacy, captured images are stored only in memory while you review the Socure sharing request. They are never saved to this device by this app.
             </p>
             {viewState === "ready" || viewState === "error" ? (
               <label className="mt-4 flex gap-3 rounded-md bg-canvas-soft p-4 text-body-sm text-body">
                 <input
                   type="checkbox"
-                  checked={biometricConsent}
-                  onChange={(event) => setBiometricConsent(event.target.checked)}
+                  checked={socureConsent}
+                  onChange={(event) => setSocureConsent(event.target.checked)}
                   className="mt-0.5 size-4 accent-secondary"
                 />
-                <span>I consent to sharing these highly sensitive biometric liveness images with Socure for liveness verification.</span>
+                <span>I consent to first sharing these highly sensitive biometric liveness images, then my approved passport details, with Socure for identity and liveness verification.</span>
               </label>
             ) : null}
-          </>
-        ) : (
-          <div className="mt-8 rounded-lg border-2 border-secondary bg-secondary-subtle p-6 text-center">
-            <span className="text-4xl text-positive" aria-hidden="true">✓</span>
-            <p className="mt-3 font-semibold text-primary">All four demo challenges completed</p>
-            <p className="mt-2 text-body-sm text-body">Your liveness images were sent to Socure and were not stored by this app.</p>
-          </div>
-        )}
+        </>
       </div>
 
       <div className="sticky bottom-0 mt-7 bg-canvas pb-2 pt-4">
-        {viewState === "complete" ? (
-          <Button fullWidth onClick={() => navigate(routePaths.school)}>Continue</Button>
-        ) : (
-          <>
+        <>
             {(viewState === "ready" || viewState === "error") ? (
-              <Button fullWidth onClick={startCheck} disabled={!biometricConsent}>
+              <Button fullWidth onClick={startCheck} disabled={!socureConsent}>
                 {viewState === "error" ? "Try camera again" : "Start camera"}
               </Button>
-            ) : null}
-            {viewState === "submitting" ? (
-              <p className="text-center text-body-sm text-body" aria-live="polite">Securely sending highly sensitive liveness images to Socure…</p>
             ) : null}
             <Button className="mt-3" variant="secondary" fullWidth onClick={continueWithoutCamera}>
               Continue demo without camera
             </Button>
-          </>
-        )}
+        </>
       </div>
     </section>
   );

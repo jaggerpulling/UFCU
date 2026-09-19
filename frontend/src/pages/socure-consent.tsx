@@ -4,11 +4,16 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { routePaths } from "@/app/routes";
 import { Button } from "@/components";
 import {
+  buildSocureLivenessSubmissionRequest,
   buildSocureVerificationRequest,
   socureSharedFields,
   socureVerificationProvider,
   type SocureVerificationResult,
 } from "@/features/identity/socure-verification";
+import {
+  clearPendingLivenessImages,
+  getPendingLivenessImages,
+} from "@/features/liveness/liveness-evidence";
 import { getPassportResult } from "@/features/profile/member-profile";
 import { useScrollReset } from "@/lib/use-scroll-reset";
 
@@ -18,6 +23,9 @@ export function SocureConsentPage() {
   const navigate = useNavigate();
   const abortController = useRef<AbortController | null>(null);
   const [identity] = useState(getPassportResult);
+  // Keep evidence outside React state; this ref exists only while the user is
+  // deciding whether to authorize the handoff.
+  const livenessImages = useRef(getPendingLivenessImages()).current;
   const [viewState, setViewState] = useState<ViewState>("consent");
   const [result, setResult] = useState<SocureVerificationResult | null>(null);
   useScrollReset(viewState);
@@ -35,6 +43,13 @@ export function SocureConsentPage() {
     setViewState("verifying");
 
     try {
+      if (livenessImages) {
+        await socureVerificationProvider.submitLivenessImages(
+          buildSocureLivenessSubmissionRequest(identity, livenessImages),
+          controller.signal,
+        );
+        clearPendingLivenessImages();
+      }
       const verificationResult = await socureVerificationProvider.verifyIdentity(
         buildSocureVerificationRequest(identity),
         controller.signal,
@@ -42,17 +57,18 @@ export function SocureConsentPage() {
       setResult(verificationResult);
       setViewState(verificationResult.verified ? "complete" : "not-verified");
     } catch (error) {
+      clearPendingLivenessImages();
       if (error instanceof DOMException && error.name === "AbortError") return;
       setViewState("error");
     }
   }
 
-  if (viewState === "verifying") return <Verifying />;
+  if (viewState === "verifying") return <Verifying includesLiveness={Boolean(livenessImages)} />;
   if (viewState === "complete" && result) {
     return (
       <VerificationComplete
         result={result}
-        onContinue={() => navigate(routePaths.liveness)}
+        onContinue={() => navigate(livenessImages ? routePaths.school : routePaths.liveness)}
       />
     );
   }
@@ -60,7 +76,7 @@ export function SocureConsentPage() {
     return (
       <VerificationIssue
         onRetry={allowAndContinue}
-        onContinue={() => navigate(routePaths.liveness)}
+        onContinue={() => navigate(livenessImages ? routePaths.school : routePaths.liveness)}
       />
     );
   }
@@ -71,20 +87,36 @@ export function SocureConsentPage() {
     ["Passport number", identity.passportNumber],
     ["Nationality", identity.nationality],
   ];
+  if (livenessImages) fields.push(["Liveness images", `${livenessImages.length} captured images`]);
+
+  function decline() {
+    clearPendingLivenessImages();
+    navigate(livenessImages ? routePaths.school : routePaths.liveness);
+  }
 
   return (
     <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
       <div className="flex-1">
         <p className="text-caption font-semibold uppercase tracking-[0.16em] text-mute">
-          Identity · Verification consent
+          Identity · Socure consent
         </p>
-        <h1 className="mt-3 font-display text-display-md text-primary">Verify your information</h1>
+        {livenessImages ? (
+          <div className="mt-5 rounded-lg border border-primary-subtle bg-white p-4">
+            <img src="/socure-logo.jpg" alt="Socure" className="mx-auto h-12 w-auto object-contain" />
+            <p className="mt-3 text-center text-caption font-semibold uppercase tracking-[0.14em] text-mute">Socure × UFCU</p>
+          </div>
+        ) : null}
+        <h1 className="mt-3 font-display text-display-md text-primary">
+          {livenessImages ? "Send your verification data?" : "Verify your information"}
+        </h1>
         <p className="mt-3 text-body-md text-body">
-          To continue, VERIFIED will securely share selected identity information with Socure, our identity verification provider.
+          {livenessImages
+            ? "Your liveness images were collected first and are still only in memory. Choose whether to securely send them, along with the passport details below, to Socure."
+            : "To continue, VERIFIED will securely share selected identity information with Socure, our identity verification provider."}
         </p>
 
         <div className="mt-7 overflow-hidden rounded-lg border border-primary-subtle bg-canvas">
-          <p className="bg-canvas-soft px-5 py-4 font-semibold text-primary">Information to be shared</p>
+          <p className="bg-canvas-soft px-5 py-4 font-semibold text-primary">Data to be shared</p>
           <dl className="divide-y divide-primary-subtle px-5">
             {fields.map(([label, value]) => (
               <div key={label} className="grid grid-cols-[7rem_1fr] gap-3 py-3.5">
@@ -112,7 +144,7 @@ export function SocureConsentPage() {
 
         <div className="mt-5 flex gap-3 rounded-md bg-positive-subtle p-4 text-body-sm text-primary">
           <LockIcon />
-          <p>Nothing is sent until you select Allow &amp; Continue. This hackathon step uses an offline demo response.</p>
+          <p>Nothing is sent until you select Allow &amp; Continue. Liveness images remain only in memory until your choice. This hackathon step uses an offline demo response.</p>
         </div>
 
         {viewState === "error" ? (
@@ -124,9 +156,9 @@ export function SocureConsentPage() {
 
       <div className="sticky bottom-0 mt-7 bg-canvas pb-2 pt-4">
         <Button fullWidth onClick={allowAndContinue}>
-          {viewState === "error" ? "Try Again" : "Allow & Continue"}
+          {viewState === "error" ? "Try Again" : livenessImages ? "Send to Socure" : "Allow & Continue"}
         </Button>
-        <Button className="mt-3" variant="secondary" fullWidth onClick={() => navigate(routePaths.liveness)}>
+        <Button className="mt-3" variant="secondary" fullWidth onClick={decline}>
           Not Now
         </Button>
       </div>
@@ -134,7 +166,7 @@ export function SocureConsentPage() {
   );
 }
 
-function Verifying() {
+function Verifying({ includesLiveness }: { includesLiveness: boolean }) {
   return (
     <section className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center" aria-live="polite">
       <div className="relative grid size-24 place-items-center">
@@ -142,7 +174,11 @@ function Verifying() {
         <span className="relative grid size-16 place-items-center rounded-full bg-primary text-lg font-semibold text-white">SOC</span>
       </div>
       <h1 className="mt-7 font-display text-display-md text-primary">Verifying your information</h1>
-      <p className="mt-3 max-w-xs text-body-md text-body">Sending only the four fields you approved through the VERIFIED backend.</p>
+      <p className="mt-3 max-w-xs text-body-md text-body">
+        {includesLiveness
+          ? "Securely sending your liveness images first, followed by the passport details you approved."
+          : "Sending only the four fields you approved through the VERIFIED backend."}
+      </p>
       <p className="mt-5 rounded-full bg-warning-subtle px-3 py-1.5 text-caption font-semibold text-warning">Demo verification</p>
     </section>
   );
