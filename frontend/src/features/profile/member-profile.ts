@@ -267,6 +267,9 @@ export function buildMemberProfile(
       "school",
       sourceLabel,
     );
+    if (school.currentAddress) {
+      student.currentAddress = verifiedField(school.currentAddress, "school", sourceLabel);
+    }
   }
 
   const finances: MemberProfile["finances"] = {};

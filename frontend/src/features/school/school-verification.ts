@@ -47,6 +47,7 @@ export interface EnrollmentVerificationResult {
   provider: "national_student_clearinghouse";
   school: string;
   enrollmentStatus?: string;
+  currentAddress?: string;
   verified: boolean;
   verifiedAt: string;
   demo: true;

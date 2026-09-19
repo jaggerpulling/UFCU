@@ -16,6 +16,7 @@ const fieldLabels: Record<string, string> = {
   zipCode: "ZIP",
   school: "School",
   enrollment: "Enrollment",
+  currentAddress: "Current address",
   program: "Program",
   programEnd: "Expected completion",
   internationalCreditHistory: "International credit history",

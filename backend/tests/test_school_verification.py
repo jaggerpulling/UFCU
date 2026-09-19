@@ -30,6 +30,7 @@ def test_demo_acc_enrollment_is_verified() -> None:
     assert result["provider"] == "national_student_clearinghouse"
     assert result["school"] == "Austin Community College"
     assert result["enrollmentStatus"] == "Currently Enrolled"
+    assert result["currentAddress"] == "123 Demo Street, Austin, TX 78701"
     assert result["verified"] is True
     assert result["verifiedAt"]
     assert result["demo"] is True
@@ -37,6 +38,7 @@ def test_demo_acc_enrollment_is_verified() -> None:
         "provider",
         "school",
         "enrollmentStatus",
+        "currentAddress",
         "verified",
         "verifiedAt",
         "demo",

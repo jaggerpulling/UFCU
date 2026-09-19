@@ -38,6 +38,7 @@ class MockNationalStudentClearinghouseProvider:
             provider=self.provider_name,
             school=school,
             enrollment_status="Currently Enrolled" if is_demo_match else None,
+            current_address="123 Demo Street, Austin, TX 78701" if is_demo_match else None,
             verified=is_demo_match,
             verified_at=datetime.now(UTC),
             demo=True,

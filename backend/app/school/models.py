@@ -27,6 +27,7 @@ class EnrollmentVerificationResult(BaseModel):
     provider: Literal["national_student_clearinghouse"]
     school: str
     enrollment_status: str | None = Field(default=None, serialization_alias="enrollmentStatus")
+    current_address: str | None = Field(default=None, serialization_alias="currentAddress")
     verified: bool
     verified_at: datetime = Field(serialization_alias="verifiedAt")
     demo: Literal[True]
