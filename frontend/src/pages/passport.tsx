@@ -118,7 +118,7 @@ export function PassportPage() {
 function IdentityEstablished({ identity, onContinue }: { identity: PassportIdentity; onContinue: () => void }) {
   const verifiedFields = [
     ["Name", identity.fullName],
-    ["Date of birth", identity.dateOfBirth],
+    ["Date of birth", formatDate(identity.dateOfBirth)],
     ["Nationality", identity.nationality],
     ["Document", `${identity.documentType} · ${identity.passportNumber}`],
   ];
@@ -179,6 +179,15 @@ function IdentityEstablished({ identity, onContinue }: { identity: PassportIdent
       </div>
     </section>
   );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00Z`));
 }
 
 function LockIcon() {

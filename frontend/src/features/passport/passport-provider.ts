@@ -7,6 +7,9 @@ export interface PassportScanProgress {
 }
 
 export interface PassportIdentity {
+  firstName: string;
+  middleName?: string;
+  lastName: string;
   fullName: string;
   dateOfBirth: string;
   nationality: string;

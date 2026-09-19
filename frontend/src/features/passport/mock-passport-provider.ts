@@ -1,12 +1,15 @@
 import type { PassportIdentity, PassportProvider, PassportScanProgress } from "./passport-provider";
 
-const syntheticIdentity: PassportIdentity = {
-  fullName: "Maya Okafor",
-  dateOfBirth: "14 February 2004",
-  nationality: "Nigerian",
+export const syntheticIdentity: PassportIdentity = {
+  firstName: "MARCO",
+  middleName: "REED",
+  lastName: "AMMERMAN",
+  fullName: "Marco Reed Ammerman",
+  dateOfBirth: "1999-01-01",
+  nationality: "United States",
   passportNumber: "A•••••482",
   documentType: "Passport",
-  initials: "MO",
+  initials: "MA",
 };
 
 const scanSequence: PassportScanProgress[] = [
