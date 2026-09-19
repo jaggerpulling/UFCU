@@ -13,6 +13,7 @@ import { GuidePage } from "@/pages/guide";
 import { SchoolAuthorizationPage } from "@/pages/school-authorization";
 import { SchoolPage } from "@/pages/school";
 import { WelcomePage } from "@/pages/welcome";
+import { SocureConsentPage } from "@/pages/socure-consent";
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <WelcomePage /> },
       { path: "passport", element: <PassportPage /> },
+      { path: "identity/verify", element: <SocureConsentPage /> },
       { path: "liveness", element: <LivenessPage /> },
       { path: "school", element: <SchoolPage /> },
       { path: "school/authorize", element: <SchoolAuthorizationPage /> },

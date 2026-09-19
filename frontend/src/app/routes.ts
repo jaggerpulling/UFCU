@@ -1,6 +1,7 @@
 export const routePaths = {
   welcome: "/",
   passport: "/passport",
+  socureConsent: "/identity/verify",
   liveness: "/liveness",
   school: "/school",
   schoolAuthorization: "/school/authorize",

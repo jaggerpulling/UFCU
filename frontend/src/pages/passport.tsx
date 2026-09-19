@@ -43,7 +43,7 @@ export function PassportPage() {
   }
 
   if (viewState === "complete" && identity) {
-    return <IdentityEstablished identity={identity} onContinue={() => navigate(routePaths.liveness)} />;
+    return <IdentityEstablished identity={identity} onContinue={() => navigate(routePaths.socureConsent)} />;
   }
 
   if (viewState === "scanning") {

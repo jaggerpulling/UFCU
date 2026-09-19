@@ -45,6 +45,24 @@ python -m uvicorn app.main:app --reload
 The API runs at `http://localhost:8000`. Its health check is available at `GET /api/health`.
 Open `http://localhost:8000/docs` to try `POST /api/school/verify`.
 
+## Socure identity verification demo
+
+After the synthetic passport scan, `/identity/verify` shows the exact identity fields proposed for
+sharing and requires an explicit **Allow & Continue** action. **Not Now** makes no verification
+request. The browser posts only the approved legal name, date of birth, passport number, and
+nationality to `POST /api/identity/socure/verify`; it never calls Socure directly.
+
+`IDENTITY_PROVIDER=mock_socure` is the default. `MockSocureVerificationProvider` implements the
+same `SocureVerificationProvider` boundary reserved for a future authenticated integration, but it
+runs fully offline and does not claim access to a passport, government record, or live Socure
+capability. The response is labeled `Socure — Demo Verification` throughout the UI.
+
+Consent audit events contain only the provider, purpose, shared field names, decision, event ID,
+and server timestamp—never identity values. Validation and frontend errors do not echo sensitive
+inputs. A future live server transport must load `SOCURE_API_KEY` and `SOCURE_API_BASE_URL` from
+backend environment variables, rejects non-HTTPS endpoints, and sets TLS 1.2 as its minimum.
+No Socure secret is exposed through a `VITE_*` variable or frontend bundle.
+
 The school endpoint receives only the school identifier and minimum identity-matching fields after
 the member explicitly starts verification. For local development, set
 `STUDENT_VERIFICATION_PROVIDER=mock_nsc`. For example, send:

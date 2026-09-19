@@ -9,12 +9,23 @@ def _as_bool(value: str | None, default: bool = True) -> bool:
     return value.lower() in {"1", "true", "yes", "on"}
 
 
+def _clean_url(value: str | None) -> str | None:
+    return value.rstrip("/") if value else None
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_name: str = "VERIFIED API"
     app_env: str = getenv("APP_ENV", "development")
     frontend_origin: str = getenv("FRONTEND_ORIGIN", "http://localhost:5173")
     mock_passport: bool = _as_bool(getenv("MOCK_PASSPORT"))
+    identity_provider: Literal["mock_socure"] = getenv(  # type: ignore[assignment]
+        "IDENTITY_PROVIDER", "mock_socure"
+    ).lower()
+    # Reserved for a future authenticated server-side provider. Never expose this
+    # value through an API response or a VITE_* frontend environment variable.
+    socure_api_key: str | None = getenv("SOCURE_API_KEY")
+    socure_api_base_url: str | None = _clean_url(getenv("SOCURE_API_BASE_URL"))
     student_verification_provider: Literal["mock_nsc"] = getenv(  # type: ignore[assignment]
         "STUDENT_VERIFICATION_PROVIDER", "mock_nsc"
     ).lower()

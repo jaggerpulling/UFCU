@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.router import router
 from app.config import settings
@@ -19,6 +21,19 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     application.include_router(router, prefix="/api")
+
+    @application.exception_handler(RequestValidationError)
+    async def redacted_validation_error(
+        _request: Request, error: RequestValidationError
+    ) -> JSONResponse:
+        # Pydantic errors normally echo the rejected input. Return only structural
+        # validation metadata so identity values never appear in error responses.
+        detail = [
+            {key: item[key] for key in ("loc", "msg", "type") if key in item}
+            for item in error.errors()
+        ]
+        return JSONResponse(status_code=422, content={"detail": detail})
+
     return application
 
 

@@ -4,6 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.config import settings
+from app.identity.audit import consent_audit_log
+from app.identity.models import SocureVerificationRequest, SocureVerificationResult
+from app.identity.provider import SocureVerificationProvider, get_socure_verification_provider
 from app.nova import (
     NovaClient,
     NovaCompletionRequest,
@@ -27,6 +30,22 @@ class HealthResponse(BaseModel):
 @router.get("/health", response_model=HealthResponse, tags=["system"])
 async def health_check() -> HealthResponse:
     return HealthResponse(status="ok", service="verified-api")
+
+
+@router.post(
+    "/identity/socure/verify",
+    response_model=SocureVerificationResult,
+    response_model_by_alias=True,
+    tags=["identity"],
+)
+async def verify_identity_with_socure(
+    request: SocureVerificationRequest,
+    provider: SocureVerificationProvider = Depends(get_socure_verification_provider),
+) -> SocureVerificationResult:
+    # Validation requires consent.granted=true. Record only consent metadata, then
+    # pass the minimized identity object across the provider boundary.
+    consent_audit_log.record_socure_consent()
+    return await provider.verify_identity(request.identity)
 
 
 @router.post(
