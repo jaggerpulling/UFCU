@@ -1,6 +1,6 @@
 # VERIFIED
 
-Mobile-first onboarding prototype for UFCU. This repository currently contains the application foundation only: a React/Vite frontend, a FastAPI backend, shared UI primitives, route placeholders, and the VERIFIED design tokens.
+Mobile-first onboarding prototype for UFCU. It includes a React/Vite frontend, a FastAPI backend, shared UI primitives, and a consent-driven international credit history flow using Nova Credit Sandbox with a demo-safe fallback.
 
 ## Project structure
 
@@ -66,7 +66,13 @@ school verification.
 
 To run backend tests from `backend/`, use `python -m pytest` after installing the dev dependencies.
 
+## Nova Credit Sandbox
+
+Copy `.env.example` and set `NOVA_CLIENT_ID`, `NOVA_SECRET_KEY`, `NOVA_PUBLIC_ID`, and `NOVA_PRODUCT_ID`. With `NOVA_PROVIDER=auto`, the backend uses the Nova Credit sandbox only when all credentials are present; otherwise it returns a visibly labeled demo mock provider. `NOVA_PROVIDER=mock` or `MOCK_NOVA=true` forces the demo provider.
+
+Nova credentials, access tokens, status calls, and Credit Passport retrieval remain server-side. The browser receives only NovaConnect's public/product IDs and its 10-minute single-use initialization token. Configure Nova webhooks to post to `/api/nova/webhook`; client polling remains enabled as the fallback completion signal.
+
 ## Scope
 
-The backend currently includes mock school verification. Other onboarding features and provider
-workflows are still placeholders.
+The implemented school verification path lives at `/school`, and the international credit path
+lives at `/credit`. The remaining route placeholders mirror the broader product flow.

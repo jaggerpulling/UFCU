@@ -3,6 +3,8 @@ import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/components";
 import { NotFoundPage } from "@/pages/not-found";
 import { PassportPage } from "@/pages/passport";
+import { CreditConnectPage } from "@/pages/credit-connect";
+import { CreditPage } from "@/pages/credit";
 import { RoutePlaceholder } from "@/pages/route-placeholder";
 import { SchoolAuthorizationPage } from "@/pages/school-authorization";
 import { SchoolPage } from "@/pages/school";
@@ -16,8 +18,8 @@ export const router = createBrowserRouter([
       { path: "passport", element: <PassportPage /> },
       { path: "school", element: <SchoolPage /> },
       { path: "school/authorize", element: <SchoolAuthorizationPage /> },
-      { path: "credit", element: <RoutePlaceholder stage="Financial history" title="Bring your credit history with you" /> },
-      { path: "credit/connect", element: <RoutePlaceholder stage="Financial history" title="Connect international credit history" /> },
+      { path: "credit", element: <CreditPage /> },
+      { path: "credit/connect", element: <CreditConnectPage /> },
       { path: "profile", element: <RoutePlaceholder stage="Profile" title="Your VERIFIED profile" /> },
       { path: "membership-ready", element: <RoutePlaceholder stage="Complete" title="Membership ready" /> },
       { path: "goals", element: <RoutePlaceholder stage="Your goals" title="What would you like UFCU to help you with?" /> },
