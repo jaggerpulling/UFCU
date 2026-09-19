@@ -4,6 +4,13 @@ import type { SchoolVerificationResult } from "@/features/school/school-verifica
 
 export type Source = "passport" | "school" | "nova_credit" | "self_reported" | "inferred" | "demo";
 
+export interface DemoLivenessResult {
+  status: "verified_demo";
+  method: "webcam_liveness";
+  completedChallenges: Array<"center_face" | "turn_left" | "turn_right" | "blink">;
+  completedAt: string;
+}
+
 export interface ProfileField {
   value: string | number | boolean;
   source: Source;
@@ -54,11 +61,24 @@ export interface MembershipReadiness {
 
 const storageKeys = {
   passport: "verified.passport.identity",
+  liveness: "verified.demo.liveness",
   school: "verified.school.verification",
   nova: "verified.nova.report",
   novaSkipped: "verified.nova.skipped",
   goals: "verified.profile.goals",
 } as const;
+
+export function saveDemoLivenessResult(result: DemoLivenessResult) {
+  write(storageKeys.liveness, result);
+}
+
+export function getDemoLivenessResult(): DemoLivenessResult | null {
+  return read<DemoLivenessResult>(storageKeys.liveness);
+}
+
+export function clearDemoLivenessResult() {
+  sessionStorage.removeItem(storageKeys.liveness);
+}
 
 export function savePassportResult(identity: PassportIdentity) {
   write(storageKeys.passport, identity);

@@ -41,7 +41,7 @@ export function PassportPage() {
   }
 
   if (viewState === "complete" && identity) {
-    return <IdentityEstablished identity={identity} onContinue={() => navigate(routePaths.school)} />;
+    return <IdentityEstablished identity={identity} onContinue={() => navigate(routePaths.liveness)} />;
   }
 
   if (viewState === "scanning") {
@@ -161,12 +161,6 @@ function IdentityEstablished({ identity, onContinue }: { identity: PassportIdent
                 <dd className="text-right font-data text-data-sm text-primary">{value}</dd>
               </div>
             ))}
-            <div className="grid grid-cols-[7rem_1fr] gap-3 py-3.5">
-              <dt className="text-body-sm text-mute">Photo</dt>
-              <dd className="flex items-center justify-end gap-1.5 font-data text-data-sm text-positive">
-                <span aria-hidden="true">✓</span> Matched
-              </dd>
-            </div>
           </dl>
         </div>
 

@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "@/components";
 import { NotFoundPage } from "@/pages/not-found";
 import { PassportPage } from "@/pages/passport";
+import { LivenessPage } from "@/pages/liveness";
 import { ProfilePage } from "@/pages/profile";
 import { MembershipReadyPage } from "@/pages/membership-ready";
 import { CreditConnectPage } from "@/pages/credit-connect";
@@ -19,6 +20,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <WelcomePage /> },
       { path: "passport", element: <PassportPage /> },
+      { path: "liveness", element: <LivenessPage /> },
       { path: "school", element: <SchoolPage /> },
       { path: "school/authorize", element: <SchoolAuthorizationPage /> },
       { path: "credit", element: <CreditPage /> },
