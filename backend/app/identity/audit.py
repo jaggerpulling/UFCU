@@ -55,6 +55,28 @@ class ConsentAuditLog:
         )
         return event
 
+    def record_socure_biometric_consent(self) -> ConsentAuditEvent:
+        event = ConsentAuditEvent(
+            event_id=uuid4(),
+            event_type="identity_provider_consent",
+            provider="socure",
+            purpose="Verify live presence for onboarding",
+            shared_field_names=("liveness_images_highly_sensitive_biometric_data",),
+            granted=True,
+            recorded_at=datetime.now(UTC),
+        )
+        with self._lock:
+            self._events.append(event)
+        logger.info(
+            "consent_recorded event_id=%s provider=%s purpose=%s fields=%s granted=%s",
+            event.event_id,
+            event.provider,
+            event.purpose,
+            ",".join(event.shared_field_names),
+            event.granted,
+        )
+        return event
+
     def snapshot(self) -> tuple[ConsentAuditEvent, ...]:
         with self._lock:
             return tuple(self._events)

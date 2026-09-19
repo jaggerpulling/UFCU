@@ -11,11 +11,17 @@ import {
   type LivenessProgress,
 } from "@/features/liveness/face-landmarker";
 import {
+  buildSocureLivenessSubmissionRequest,
+  socureVerificationProvider,
+  type SocureLivenessImage,
+} from "@/features/identity/socure-verification";
+import {
   clearDemoLivenessResult,
+  getPassportResult,
   saveDemoLivenessResult,
 } from "@/features/profile/member-profile";
 
-type ViewState = "ready" | "loading" | "active" | "complete" | "error";
+type ViewState = "ready" | "loading" | "active" | "submitting" | "complete" | "error";
 
 const challengeLabels = {
   center_face: "Center your face",
@@ -36,10 +42,12 @@ export function LivenessPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   const frameRef = useRef<number | null>(null);
+  const livenessImagesRef = useRef<SocureLivenessImage[]>([]);
   const runIdRef = useRef(0);
   const [viewState, setViewState] = useState<ViewState>("ready");
   const [progress, setProgress] = useState<LivenessProgress>(initialProgress);
   const [errorMessage, setErrorMessage] = useState("");
+  const [biometricConsent, setBiometricConsent] = useState(false);
 
   const stopCheck = useCallback(() => {
     runIdRef.current += 1;
@@ -59,6 +67,7 @@ export function LivenessPage() {
     window.addEventListener("pagehide", stopCheck);
     return () => {
       window.removeEventListener("pagehide", stopCheck);
+      livenessImagesRef.current = [];
       stopCheck();
     };
   }, [stopCheck]);
@@ -66,6 +75,7 @@ export function LivenessPage() {
   async function startCheck() {
     stopCheck();
     clearDemoLivenessResult();
+    livenessImagesRef.current = [];
     const runId = runIdRef.current;
     setProgress(initialProgress);
     setErrorMessage("");
@@ -101,6 +111,7 @@ export function LivenessPage() {
       setViewState("active");
 
       const tracker = new LivenessTracker();
+      let completedChallengeCount = 0;
       let lastVideoTime = -1;
       let lastCheckAt = 0;
 
@@ -116,20 +127,24 @@ export function LivenessPage() {
             const nextProgress = tracker.update(result, now);
             setProgress(nextProgress);
 
+            if (nextProgress.completed.length > completedChallengeCount) {
+              const challenge = nextProgress.completed[completedChallengeCount];
+              const imageData = captureLivenessFrame(video);
+              if (!challenge || !imageData) throw new Error("Unable to capture liveness evidence.");
+              livenessImagesRef.current.push({ challenge, imageData });
+              completedChallengeCount = nextProgress.completed.length;
+            }
+
             if (nextProgress.current === null && nextProgress.completed.length === challenges.length) {
-              saveDemoLivenessResult({
-                status: "verified_demo",
-                method: "webcam_liveness",
-                completedChallenges: [...nextProgress.completed],
-                completedAt: new Date().toISOString(),
-              });
               stopCheck();
-              setViewState("complete");
+              setViewState("submitting");
+              void submitLivenessEvidence();
               return;
             }
           }
           frameRef.current = requestAnimationFrame(checkFrame);
         } catch {
+          livenessImagesRef.current = [];
           stopCheck();
           setErrorMessage("The demo liveness check stopped. Please try again.");
           setViewState("error");
@@ -138,8 +153,36 @@ export function LivenessPage() {
       frameRef.current = requestAnimationFrame(checkFrame);
     } catch (error) {
       if (runId !== runIdRef.current) return;
+      livenessImagesRef.current = [];
       stopCheck();
       setErrorMessage(cameraErrorMessage(error));
+      setViewState("error");
+    }
+  }
+
+  async function submitLivenessEvidence() {
+    const identity = getPassportResult();
+    const images = livenessImagesRef.current;
+    try {
+      if (!identity || images.length !== challenges.length) {
+        throw new Error("Liveness evidence is incomplete.");
+      }
+      await socureVerificationProvider.submitLivenessImages(
+        buildSocureLivenessSubmissionRequest(identity, images),
+      );
+      // Drop all references immediately after the provider handoff. Do not persist
+      // images in sessionStorage, localStorage, state, logs, or analytics.
+      livenessImagesRef.current = [];
+      saveDemoLivenessResult({
+        status: "verified_demo",
+        method: "webcam_liveness",
+        completedChallenges: [...challenges],
+        completedAt: new Date().toISOString(),
+      });
+      setViewState("complete");
+    } catch {
+      livenessImagesRef.current = [];
+      setErrorMessage("We couldn’t securely send your liveness images. No images were retained. Please try again.");
       setViewState("error");
     }
   }
@@ -162,7 +205,7 @@ export function LivenessPage() {
         <p className="mt-3 text-body-md text-body">
           {viewState === "complete"
             ? "You completed the camera challenges for this demo."
-            : "Use your camera to follow four quick prompts. This is a demo interaction, not biometric identity verification."}
+            : "Use your camera to follow four quick prompts. Completion images are highly sensitive biometric data and will be sent through our backend to Socure for liveness verification."}
         </p>
 
         {viewState !== "complete" ? (
@@ -206,14 +249,25 @@ export function LivenessPage() {
               </p>
             ) : null}
             <p className="mt-4 text-caption text-mute">
-              Camera frames stay on this device and are never uploaded or saved.
+              Only one image per completed challenge is captured. Images are highly sensitive biometric data, held only in memory for this session, sent over the secure provider connection to Socure, and never saved by this app.
             </p>
+            {viewState === "ready" || viewState === "error" ? (
+              <label className="mt-4 flex gap-3 rounded-md bg-canvas-soft p-4 text-body-sm text-body">
+                <input
+                  type="checkbox"
+                  checked={biometricConsent}
+                  onChange={(event) => setBiometricConsent(event.target.checked)}
+                  className="mt-0.5 size-4 accent-secondary"
+                />
+                <span>I consent to sharing these highly sensitive biometric liveness images with Socure for liveness verification.</span>
+              </label>
+            ) : null}
           </>
         ) : (
           <div className="mt-8 rounded-lg border-2 border-secondary bg-secondary-subtle p-6 text-center">
             <span className="text-4xl text-positive" aria-hidden="true">✓</span>
             <p className="mt-3 font-semibold text-primary">All four demo challenges completed</p>
-            <p className="mt-2 text-body-sm text-body">No camera images were stored.</p>
+            <p className="mt-2 text-body-sm text-body">Your liveness images were sent to Socure and were not stored by this app.</p>
           </div>
         )}
       </div>
@@ -224,9 +278,12 @@ export function LivenessPage() {
         ) : (
           <>
             {(viewState === "ready" || viewState === "error") ? (
-              <Button fullWidth onClick={startCheck}>
+              <Button fullWidth onClick={startCheck} disabled={!biometricConsent}>
                 {viewState === "error" ? "Try camera again" : "Start camera"}
               </Button>
+            ) : null}
+            {viewState === "submitting" ? (
+              <p className="text-center text-body-sm text-body" aria-live="polite">Securely sending highly sensitive liveness images to Socure…</p>
             ) : null}
             <Button className="mt-3" variant="secondary" fullWidth onClick={continueWithoutCamera}>
               Continue demo without camera
@@ -236,6 +293,22 @@ export function LivenessPage() {
       </div>
     </section>
   );
+}
+
+function captureLivenessFrame(video: HTMLVideoElement): string | null {
+  const maxDimension = 640;
+  const scale = Math.min(1, maxDimension / Math.max(video.videoWidth, video.videoHeight));
+  const width = Math.max(1, Math.round(video.videoWidth * scale));
+  const height = Math.max(1, Math.round(video.videoHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.drawImage(video, 0, 0, width, height);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+  const [, base64] = dataUrl.split(",", 2);
+  return base64 ?? null;
 }
 
 function noticeText(notice: LivenessProgress["notice"]) {

@@ -28,6 +28,31 @@ class SocureVerificationRequest(BaseModel):
     identity: SocureIdentityInformation
 
 
+class SocureLivenessImage(BaseModel):
+    """A transient liveness image. This is highly sensitive biometric data."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, populate_by_name=True, extra="forbid")
+
+    challenge: Literal["center_face", "turn_left", "turn_right", "blink"]
+    # JPEG only, capped to keep request handling bounded. Never persist or log this value.
+    image_data: str = Field(
+        alias="imageData", min_length=32, max_length=800_000, pattern=r"^[A-Za-z0-9+/]+={0,2}$"
+    )
+
+
+class SocureLivenessSubmissionRequest(BaseModel):
+    """Explicit consent and evidence needed for liveness verification."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    consent: SocureConsent
+    biometric_data_consent: Literal[True] = Field(alias="biometricDataConsent")
+    identity: SocureIdentityInformation
+    liveness_images: list[SocureLivenessImage] = Field(
+        alias="livenessImages", min_length=1, max_length=4
+    )
+
+
 class SocureVerificationResult(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 

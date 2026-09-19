@@ -19,6 +19,19 @@ export interface SocureVerificationRequest {
   };
 }
 
+export interface SocureLivenessImage {
+  challenge: "center_face" | "turn_left" | "turn_right" | "blink";
+  /** Base64 JPEG held only in memory for the current provider handoff. */
+  imageData: string;
+}
+
+export interface SocureLivenessSubmissionRequest {
+  consent: { granted: true };
+  biometricDataConsent: true;
+  identity: SocureVerificationRequest["identity"];
+  livenessImages: SocureLivenessImage[];
+}
+
 export interface SocureVerificationResult {
   provider: "socure";
   verified: boolean;
@@ -34,6 +47,10 @@ export interface SocureVerificationProvider {
     request: SocureVerificationRequest,
     signal?: AbortSignal,
   ): Promise<SocureVerificationResult>;
+  submitLivenessImages(
+    request: SocureLivenessSubmissionRequest,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }
 
 class BackendSocureVerificationProvider implements SocureVerificationProvider {
@@ -52,6 +69,21 @@ class BackendSocureVerificationProvider implements SocureVerificationProvider {
     }
     return (await response.json()) as SocureVerificationResult;
   }
+
+  async submitLivenessImages(request: SocureLivenessSubmissionRequest, signal?: AbortSignal) {
+    const apiBaseUrl = import.meta.env.VITE_API_URL ?? "/api";
+    const response = await fetch(`${apiBaseUrl}/identity/socure/liveness`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal,
+    });
+
+    if (!response.ok) {
+      // Provider error responses could contain sensitive data; never surface them.
+      throw new Error(`Liveness verification failed with status ${response.status}`);
+    }
+  }
 }
 
 export const socureVerificationProvider: SocureVerificationProvider =
@@ -68,5 +100,16 @@ export function buildSocureVerificationRequest(
       passportNumber: identity.passportNumber,
       nationality: identity.nationality,
     },
+  };
+}
+
+export function buildSocureLivenessSubmissionRequest(
+  identity: PassportIdentity,
+  livenessImages: SocureLivenessImage[],
+): SocureLivenessSubmissionRequest {
+  return {
+    ...buildSocureVerificationRequest(identity),
+    biometricDataConsent: true,
+    livenessImages,
   };
 }

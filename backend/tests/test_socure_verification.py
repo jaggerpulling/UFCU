@@ -23,6 +23,19 @@ def demo_request(*, consent: bool = True) -> dict[str, object]:
     }
 
 
+def liveness_request(*, biometric_consent: bool = True) -> dict[str, object]:
+    return {
+        **demo_request(),
+        "biometricDataConsent": biometric_consent,
+        "livenessImages": [
+            {"challenge": "center_face", "imageData": "a" * 32},
+            {"challenge": "turn_left", "imageData": "a" * 32},
+            {"challenge": "turn_right", "imageData": "a" * 32},
+            {"challenge": "blink", "imageData": "a" * 32},
+        ],
+    }
+
+
 def setup_function() -> None:
     consent_audit_log.clear()
 
@@ -138,3 +151,30 @@ def test_mock_implements_socure_provider_interface() -> None:
 
     assert result.verified is True
     assert result.demo is True
+
+
+def test_liveness_images_require_explicit_biometric_consent_and_are_not_audited() -> None:
+    response = client.post("/api/identity/socure/liveness", json=liveness_request())
+
+    assert response.status_code == 204
+    [event] = consent_audit_log.snapshot()
+    assert event.shared_field_names == ("liveness_images_highly_sensitive_biometric_data",)
+    assert "a" * 32 not in repr(event)
+
+    response = client.post(
+        "/api/identity/socure/liveness", json=liveness_request(biometric_consent=False)
+    )
+
+    assert response.status_code == 422
+
+
+def test_liveness_validation_does_not_echo_biometric_images() -> None:
+    request = liveness_request()
+    images = request["livenessImages"]
+    assert isinstance(images, list)
+    images[0]["imageData"] = "BIOMETRIC-IMAGE-MUST-NOT-ECHO"  # type: ignore[index]
+
+    response = client.post("/api/identity/socure/liveness", json=request)
+
+    assert response.status_code == 422
+    assert "BIOMETRIC-IMAGE-MUST-NOT-ECHO" not in response.text

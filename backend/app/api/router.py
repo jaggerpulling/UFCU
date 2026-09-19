@@ -5,7 +5,11 @@ from pydantic import BaseModel
 
 from app.config import settings
 from app.identity.audit import consent_audit_log
-from app.identity.models import SocureVerificationRequest, SocureVerificationResult
+from app.identity.models import (
+    SocureLivenessSubmissionRequest,
+    SocureVerificationRequest,
+    SocureVerificationResult,
+)
 from app.identity.provider import SocureVerificationProvider, get_socure_verification_provider
 from app.nova import (
     NovaClient,
@@ -46,6 +50,17 @@ async def verify_identity_with_socure(
     # pass the minimized identity object across the provider boundary.
     consent_audit_log.record_socure_consent()
     return await provider.verify_identity(request.identity)
+
+
+@router.post("/identity/socure/liveness", status_code=204, tags=["identity"])
+async def submit_liveness_to_socure(
+    request: SocureLivenessSubmissionRequest,
+    provider: SocureVerificationProvider = Depends(get_socure_verification_provider),
+) -> None:
+    # This endpoint intentionally has no request logging or persistence. Images are
+    # highly sensitive biometric data and exist only for this provider handoff.
+    consent_audit_log.record_socure_biometric_consent()
+    await provider.submit_liveness_images(request.identity, request.liveness_images)
 
 
 @router.post(

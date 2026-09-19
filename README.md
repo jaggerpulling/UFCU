@@ -50,7 +50,10 @@ Open `http://localhost:8000/docs` to try `POST /api/school/verify`.
 After the synthetic passport scan, `/identity/verify` shows the exact identity fields proposed for
 sharing and requires an explicit **Allow & Continue** action. **Not Now** makes no verification
 request. The browser posts only the approved legal name, date of birth, passport number, and
-nationality to `POST /api/identity/socure/verify`; it never calls Socure directly.
+nationality to `POST /api/identity/socure/verify`; it never calls Socure directly. After separate,
+explicit biometric consent, it captures one JPEG for each completed liveness challenge and sends
+those highly sensitive biometric images only to `POST /api/identity/socure/liveness`. Images stay
+in browser memory only for that handoff and are never placed in storage, logs, or the audit trail.
 
 `IDENTITY_PROVIDER=mock_socure` is the default. `MockSocureVerificationProvider` implements the
 same `SocureVerificationProvider` boundary reserved for a future authenticated integration, but it
@@ -58,8 +61,8 @@ runs fully offline and does not claim access to a passport, government record, o
 capability. The response is labeled `Socure — Demo Verification` throughout the UI.
 
 Consent audit events contain only the provider, purpose, shared field names, decision, event ID,
-and server timestamp—never identity values. Validation and frontend errors do not echo sensitive
-inputs. A future live server transport must load `SOCURE_API_KEY` and `SOCURE_API_BASE_URL` from
+and server timestamp—never identity values or biometric images. Validation and frontend errors do
+not echo sensitive inputs. A future live server transport must load `SOCURE_API_KEY` and `SOCURE_API_BASE_URL` from
 backend environment variables, rejects non-HTTPS endpoints, and sets TLS 1.2 as its minimum.
 No Socure secret is exposed through a `VITE_*` variable or frontend bundle.
 

@@ -2,7 +2,11 @@ from abc import ABC, abstractmethod
 from datetime import UTC, date, datetime
 
 from app.config import settings
-from app.identity.models import SocureIdentityInformation, SocureVerificationResult
+from app.identity.models import (
+    SocureIdentityInformation,
+    SocureLivenessImage,
+    SocureVerificationResult,
+)
 
 
 class SocureVerificationProvider(ABC):
@@ -13,6 +17,12 @@ class SocureVerificationProvider(ABC):
         self, identity: SocureIdentityInformation
     ) -> SocureVerificationResult:
         """Verify only the identity fields explicitly approved by the member."""
+
+    @abstractmethod
+    async def submit_liveness_images(
+        self, identity: SocureIdentityInformation, images: list[SocureLivenessImage]
+    ) -> None:
+        """Send transient, consented highly sensitive biometric liveness evidence."""
 
 
 class MockSocureVerificationProvider(SocureVerificationProvider):
@@ -49,6 +59,13 @@ class MockSocureVerificationProvider(SocureVerificationProvider):
             source="Socure — Demo Verification",
             demo=True,
         )
+
+    async def submit_liveness_images(
+        self, identity: SocureIdentityInformation, images: list[SocureLivenessImage]
+    ) -> None:
+        # Intentionally discard the frames. The offline demo must never retain,
+        # inspect, or log highly sensitive biometric data.
+        del identity, images
 
 
 def _same_text(left: str, right: str) -> bool:
