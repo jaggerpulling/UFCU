@@ -45,24 +45,26 @@ python -m uvicorn app.main:app --reload
 The API runs at `http://localhost:8000`. Its health check is available at `GET /api/health`.
 Open `http://localhost:8000/docs` to try `POST /api/school/verify`.
 
-The school endpoint checks structured passport identity data against synthetic Austin Community
-College student records. For example, send:
+The school endpoint receives only the school identifier and minimum identity-matching fields after
+the member explicitly starts verification. For local development, set
+`STUDENT_VERIFICATION_PROVIDER=mock_nsc`. For example, send:
 
 ```json
 {
-  "first_name": "MARCO",
-  "middle_name": "REED",
-  "last_name": "AMMERMAN",
-  "date_of_birth": "1999-01-01"
+  "schoolId": "austin-community-college",
+  "identity": {
+    "firstName": "MARCO",
+    "lastName": "AMMERMAN",
+    "dateOfBirth": "1999-01-01"
+  }
 }
 ```
 
-This record returns `{"verified": true, "status": "verified", "school": "Austin Community College", "source": "ACC Demo Connection"}`.
-An inactive demo record is `JORDAN LEE CHEN`, born `2000-05-12`. Any other identity returns
-`no_match`. The middle name may be omitted; when supplied, it must match. Multiple matching
-records return `ambiguous` rather than verifying a student. This is demo data, not a real
-school connection. The frontend should call this endpoint only after the member initiates
-school verification.
+The synthetic demo identity returns a successful response labeled
+`National Student Clearinghouse — Demo Verification` in the UI. The backend implementation is
+`MockNationalStudentClearinghouseProvider`, behind a `StudentVerificationProvider` protocol, so an
+authorized production provider can replace it later without changing the frontend flow. It does
+not contact NSC or a school, collect school credentials, or require internet access.
 
 To run backend tests from `backend/`, use `python -m pytest` after installing the dev dependencies.
 

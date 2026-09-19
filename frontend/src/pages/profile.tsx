@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import { routePaths } from "@/app/routes";
 import { Button, SourceBadge } from "@/components";
-import { getMemberProfile, type ProfileField } from "@/features/profile/member-profile";
+import { getMemberProfile, wasSchoolSkipped, type ProfileField } from "@/features/profile/member-profile";
 
 const fieldLabels: Record<string, string> = {
   name: "Name",
@@ -31,6 +31,10 @@ export function ProfilePage() {
     [...Object.values(profile.identity), ...Object.values(profile.student), ...Object.values(profile.finances)]
       .map((field) => field.source),
   ).size;
+  if (Object.keys(profile.identity).length === 0) return <Navigate to={routePaths.passport} replace />;
+  if (Object.keys(profile.student).length === 0 && !wasSchoolSkipped()) {
+    return <Navigate to={routePaths.school} replace />;
+  }
 
   return (
     <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
@@ -49,15 +53,23 @@ export function ProfilePage() {
         <div className="mt-6 flex items-center gap-3 rounded-lg bg-primary px-4 py-4 text-white">
           <div className="grid size-10 shrink-0 place-items-center rounded-full bg-white/10 font-data text-data-md">{sourceCount}</div>
           <div>
-            <p className="font-semibold">{sourceCount} sources brought together</p>
+            <p className="font-semibold">{sourceCount} {sourceCount === 1 ? "source" : "sources"} brought together</p>
             <p className="mt-0.5 text-caption text-white/70">Every profile value shows where it came from.</p>
           </div>
         </div>
 
         <div className="mt-7 space-y-5">
           <ProfileSection title="Identity" description="Established from your passport" fields={profile.identity} />
-          <ProfileSection title="Student" description="Confirmed with your school" fields={profile.student} />
-          <ProfileSection title="Financial history" description="Connected with your permission" fields={profile.finances} />
+          <ProfileSection
+            title="Student"
+            description={Object.keys(profile.student).length > 0 ? "Confirmed with your permission" : "Not verified — your choice"}
+            fields={profile.student}
+          />
+          <ProfileSection
+            title="Financial history"
+            description={profile.finances.internationalCreditHistory?.value === false ? "Not connected — your choice" : "Connected with your permission"}
+            fields={profile.finances}
+          />
         </div>
 
         <div className="mt-6 rounded-md bg-canvas-soft p-4">
@@ -88,6 +100,7 @@ function ProfileSection({
   fields: Record<string, ProfileField>;
 }) {
   const entries = Object.entries(fields).sort(([left], [right]) => fieldOrder.indexOf(left) - fieldOrder.indexOf(right));
+  const complete = entries.length > 0 && entries.every(([, field]) => field.verified);
 
   return (
     <section className="overflow-hidden rounded-lg border border-primary-subtle bg-canvas" aria-label={title}>
@@ -96,7 +109,9 @@ function ProfileSection({
           <h2 className="font-display text-display-sm text-primary">{title}</h2>
           <p className="mt-0.5 text-caption text-mute">{description}</p>
         </div>
-        <span className="grid size-7 place-items-center rounded-full bg-positive-subtle text-sm font-semibold text-positive" aria-hidden="true">✓</span>
+        <span className={`grid size-7 shrink-0 place-items-center rounded-full text-sm font-semibold ${complete ? "bg-positive-subtle text-positive" : "bg-primary-subtle text-primary"}`} aria-hidden="true">
+          {complete ? "✓" : "◇"}
+        </span>
       </div>
       <dl className="divide-y divide-primary-subtle">
         {entries.map(([key, field]) => (

@@ -1,35 +1,32 @@
-from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class PassportIdentity(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True)
+class IdentityMatchInformation(BaseModel):
+    """The minimum passport-derived fields needed to match a demo enrollment record."""
 
-    first_name: str = Field(min_length=1)
-    middle_name: str | None = Field(default=None, min_length=1)
-    last_name: str = Field(min_length=1)
-    date_of_birth: date
+    model_config = ConfigDict(str_strip_whitespace=True, populate_by_name=True)
 
-
-@dataclass(frozen=True)
-class StudentRecord:
-    first_name: str
-    middle_name: str | None
-    last_name: str
-    date_of_birth: date
-    actively_enrolled: bool
-    program: str | None = None
-    expected_completion_date: date | None = None
+    first_name: str = Field(alias="firstName", min_length=1)
+    last_name: str = Field(alias="lastName", min_length=1)
+    date_of_birth: date = Field(alias="dateOfBirth")
 
 
-class SchoolVerificationResult(BaseModel):
-    verified: bool
-    status: Literal["verified", "inactive", "no_match", "ambiguous"]
+class EnrollmentVerificationRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, populate_by_name=True)
+
+    school_id: str = Field(alias="schoolId", min_length=1)
+    identity: IdentityMatchInformation
+
+
+class EnrollmentVerificationResult(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    provider: Literal["national_student_clearinghouse"]
     school: str
-    source: str
-    enrollment_status: str | None = None
-    program: str | None = None
-    expected_completion_date: date | None = None
+    enrollment_status: str | None = Field(default=None, serialization_alias="enrollmentStatus")
+    verified: bool
+    verified_at: datetime = Field(serialization_alias="verifiedAt")
+    demo: Literal[True]

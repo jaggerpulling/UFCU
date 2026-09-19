@@ -13,9 +13,8 @@ from app.nova import (
     NovaWebhookPayload,
     mock_nova_store,
 )
-from app.school.models import PassportIdentity, SchoolVerificationResult
-from app.school.provider import SchoolDataSource, get_school_data_source
-from app.school.verification import verify_student
+from app.school.models import EnrollmentVerificationRequest, EnrollmentVerificationResult
+from app.school.provider import StudentVerificationProvider, get_student_verification_provider
 
 router = APIRouter()
 
@@ -32,15 +31,16 @@ async def health_check() -> HealthResponse:
 
 @router.post(
     "/school/verify",
-    response_model=SchoolVerificationResult,
+    response_model=EnrollmentVerificationResult,
+    response_model_by_alias=True,
     response_model_exclude_none=True,
     tags=["school"],
 )
-def verify_school_enrollment(
-    identity: PassportIdentity,
-    school_data: SchoolDataSource = Depends(get_school_data_source),
-) -> SchoolVerificationResult:
-    return verify_student(identity, school_data)
+async def verify_school_enrollment(
+    request: EnrollmentVerificationRequest,
+    provider: StudentVerificationProvider = Depends(get_student_verification_provider),
+) -> EnrollmentVerificationResult:
+    return await provider.verify_enrollment(request)
 
 
 def _nova_client() -> NovaClient:

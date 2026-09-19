@@ -1,6 +1,6 @@
 import type { PassportIdentity } from "@/features/passport/passport-provider";
 import type { NovaReport } from "@/features/credit/nova-api";
-import type { SchoolVerificationResult } from "@/features/school/school-verification";
+import type { EnrollmentVerificationResult } from "@/features/school/school-verification";
 
 export type Source = "passport" | "school" | "nova_credit" | "self_reported" | "inferred" | "demo";
 
@@ -63,6 +63,7 @@ const storageKeys = {
   passport: "verified.passport.identity",
   liveness: "verified.demo.liveness",
   school: "verified.school.verification",
+  schoolSkipped: "verified.school.skipped",
   nova: "verified.nova.report",
   novaSkipped: "verified.nova.skipped",
   goals: "verified.profile.goals",
@@ -84,22 +85,98 @@ export function savePassportResult(identity: PassportIdentity) {
   write(storageKeys.passport, identity);
 }
 
-export function saveSchoolResult(result: SchoolVerificationResult) {
+export function getPassportResult(): PassportIdentity | null {
+  const value = read<PassportIdentity>(storageKeys.passport);
+  if (!value || typeof value !== "object") return null;
+
+  const requiredStrings: Array<keyof PassportIdentity> = [
+    "firstName",
+    "lastName",
+    "fullName",
+    "dateOfBirth",
+    "nationality",
+    "passportNumber",
+    "documentType",
+    "initials",
+  ];
+  return requiredStrings.every((key) => typeof value[key] === "string" && value[key].trim().length > 0)
+    ? value
+    : null;
+}
+
+export function saveSchoolResult(result: EnrollmentVerificationResult) {
   write(storageKeys.school, result);
+  remove(storageKeys.schoolSkipped);
+}
+
+export function getSchoolResult(): EnrollmentVerificationResult | null {
+  const value = read<EnrollmentVerificationResult>(storageKeys.school);
+  return value
+    && typeof value === "object"
+    && typeof value.verified === "boolean"
+    && typeof value.school === "string"
+    && value.provider === "national_student_clearinghouse"
+    && value.demo === true
+    ? value
+    : null;
+}
+
+export function clearSchoolResult() {
+  remove(storageKeys.school);
+}
+
+export function markSchoolSkipped() {
+  remove(storageKeys.school);
+  try {
+    sessionStorage.setItem(storageKeys.schoolSkipped, "true");
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsing contexts.
+  }
+}
+
+export function clearSchoolSkipped() {
+  remove(storageKeys.schoolSkipped);
+}
+
+export function wasSchoolSkipped() {
+  try {
+    return sessionStorage.getItem(storageKeys.schoolSkipped) === "true";
+  } catch {
+    return false;
+  }
 }
 
 export function saveNovaResult(report: NovaReport) {
   write(storageKeys.nova, report);
-  sessionStorage.removeItem(storageKeys.novaSkipped);
+  remove(storageKeys.novaSkipped);
+}
+
+export function getSavedNovaResult(): NovaReport | null {
+  const value = read<NovaReport>(storageKeys.nova);
+  return value && typeof value === "object" ? value : null;
+}
+
+export function clearNovaResult() {
+  remove(storageKeys.nova);
 }
 
 export function markNovaSkipped() {
-  sessionStorage.removeItem(storageKeys.nova);
-  sessionStorage.setItem(storageKeys.novaSkipped, "true");
+  remove(storageKeys.nova);
+  try {
+    sessionStorage.setItem(storageKeys.novaSkipped, "true");
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsing contexts.
+  }
 }
 
 export function clearNovaSkipped() {
-  sessionStorage.removeItem(storageKeys.novaSkipped);
+  remove(storageKeys.novaSkipped);
+}
+
+export function clearOnboardingData() {
+  Object.values(storageKeys).forEach(remove);
+  remove("verified.school.selected");
+  remove("verified.nova.initialization");
 }
 
 export function saveFinancialGoals(goals: SavedFinancialGoals) {
@@ -122,10 +199,15 @@ export function getFinancialGoals(): SavedFinancialGoals {
 }
 
 export function getMemberProfile(): MemberProfile {
-  const passport = read<PassportIdentity>(storageKeys.passport);
-  const school = read<SchoolVerificationResult>(storageKeys.school);
-  const skippedNova = sessionStorage.getItem(storageKeys.novaSkipped) === "true";
-  const nova = skippedNova ? null : read<NovaReport>(storageKeys.nova);
+  const passport = getPassportResult();
+  const school = getSchoolResult();
+  let skippedNova = false;
+  try {
+    skippedNova = sessionStorage.getItem(storageKeys.novaSkipped) === "true";
+  } catch {
+    // Treat unavailable storage as an empty session.
+  }
+  const nova = skippedNova ? null : getSavedNovaResult();
 
   const profile = buildMemberProfile(passport, school, nova, skippedNova);
   profile.goals = getFinancialGoals().selected;
@@ -134,7 +216,7 @@ export function getMemberProfile(): MemberProfile {
 
 export function buildMemberProfile(
   passport: PassportIdentity | null,
-  school: SchoolVerificationResult | null,
+  school: EnrollmentVerificationResult | null,
   nova: NovaReport | null,
   skippedNova = false,
 ): MemberProfile {
@@ -149,12 +231,13 @@ export function buildMemberProfile(
 
   const student: MemberProfile["student"] = {};
   if (school?.verified) {
-    student.school = verifiedField(school.school, "school", school.source);
-    student.enrollment = verifiedField(school.enrollment_status ?? "Currently enrolled", "school", school.source);
-    if (school.program) student.program = verifiedField(school.program, "school", school.source);
-    if (school.expected_completion_date) {
-      student.programEnd = verifiedField(school.expected_completion_date, "school", school.source);
-    }
+    const sourceLabel = "National Student Clearinghouse — Demo Verification";
+    student.school = verifiedField(school.school, "school", sourceLabel);
+    student.enrollment = verifiedField(
+      school.enrollmentStatus ?? "Currently Enrolled",
+      "school",
+      sourceLabel,
+    );
   }
 
   const finances: MemberProfile["finances"] = {};
@@ -243,5 +326,17 @@ function read<T>(key: string): T | null {
 }
 
 function write(key: string, value: unknown) {
-  sessionStorage.setItem(key, JSON.stringify(value));
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // A failed demo storage write should not crash the active screen.
+  }
+}
+
+function remove(key: string) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsing contexts.
+  }
 }

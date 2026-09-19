@@ -15,7 +15,9 @@ class Settings:
     app_env: str = getenv("APP_ENV", "development")
     frontend_origin: str = getenv("FRONTEND_ORIGIN", "http://localhost:5173")
     mock_passport: bool = _as_bool(getenv("MOCK_PASSPORT"))
-    mock_school: bool = _as_bool(getenv("MOCK_SCHOOL"))
+    student_verification_provider: Literal["mock_nsc"] = getenv(  # type: ignore[assignment]
+        "STUDENT_VERIFICATION_PROVIDER", "mock_nsc"
+    ).lower()
     mock_nova: bool = _as_bool(getenv("MOCK_NOVA"), default=False)
     nova_provider: Literal["auto", "sandbox", "mock"] = getenv(  # type: ignore[assignment]
         "NOVA_PROVIDER", "auto"

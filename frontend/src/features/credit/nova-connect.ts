@@ -33,7 +33,11 @@ function loadNovaScript(): Promise<void> {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${NOVA_SCRIPT_URL}"]`);
     const script = existing ?? document.createElement("script");
     script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => reject(new Error("NovaConnect could not be loaded.")), {
+    script.addEventListener("error", () => {
+      script.remove();
+      scriptPromise = null;
+      reject(new Error("NovaConnect could not be loaded."));
+    }, {
       once: true,
     });
     if (!existing) {

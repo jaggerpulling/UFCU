@@ -2,9 +2,15 @@ import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components";
 import { routePaths } from "@/app/routes";
+import { clearOnboardingData } from "@/features/profile/member-profile";
 
 export function WelcomePage() {
   const navigate = useNavigate();
+
+  function startOnboarding() {
+    clearOnboardingData();
+    navigate(routePaths.passport);
+  }
 
   return (
     <section className="flex flex-1 flex-col overflow-hidden px-6 pb-6 pt-7">
@@ -39,7 +45,7 @@ export function WelcomePage() {
       </div>
 
       <div className="sticky bottom-0 bg-canvas pb-2 pt-4">
-        <Button fullWidth onClick={() => navigate(routePaths.passport)}>
+        <Button fullWidth onClick={startOnboarding}>
           Get started
           <span aria-hidden="true">→</span>
         </Button>

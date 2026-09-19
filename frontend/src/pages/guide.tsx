@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { routePaths } from "@/app/routes";
 import { Button, SourceBadge } from "@/components";
 import { buildRecommendations, type FinancialRecommendation } from "@/features/guidance/recommendations";
-import { getFinancialGoals, getMemberProfile } from "@/features/profile/member-profile";
+import { clearOnboardingData, getFinancialGoals, getMemberProfile } from "@/features/profile/member-profile";
 
 export function GuidePage() {
   const navigate = useNavigate();
@@ -12,6 +12,11 @@ export function GuidePage() {
     () => buildRecommendations(getMemberProfile(), getFinancialGoals()),
     [],
   );
+
+  function finish() {
+    clearOnboardingData();
+    navigate(routePaths.welcome, { replace: true });
+  }
 
   if (recommendations.length === 0) {
     return (
@@ -54,7 +59,7 @@ export function GuidePage() {
       </div>
 
       <div className="sticky bottom-0 mt-7 space-y-3 bg-canvas pb-2 pt-4">
-        <Button fullWidth onClick={() => navigate(routePaths.welcome)}>Finish</Button>
+        <Button fullWidth onClick={finish}>Finish</Button>
         <Button fullWidth variant="secondary" onClick={() => navigate(routePaths.goals)}>Update my goals</Button>
       </div>
     </section>
@@ -74,10 +79,10 @@ function RecommendationCard({ recommendation, featured }: { recommendation: Fina
         </div>
         <h2 className="mt-2 font-display text-display-sm text-primary">{recommendation.title}</h2>
         <p className="mt-2 text-body-md text-body">{recommendation.description}</p>
-        <button type="button" className="mt-4 inline-flex items-center gap-2 text-body-sm font-semibold text-primary underline decoration-primary-subtle underline-offset-4">
+        <p className="mt-4 inline-flex items-center gap-2 text-body-sm font-semibold text-primary">
+          <span className="text-caption uppercase tracking-[0.08em] text-mute">Suggested next step:</span>
           {recommendation.action}
-          <span aria-hidden="true">→</span>
-        </button>
+        </p>
       </div>
 
       <div className="border-t border-primary-subtle bg-white">

@@ -1,109 +1,93 @@
-from datetime import date
+import asyncio
 
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.school.models import PassportIdentity, StudentRecord
-from app.school.verification import verify_student
+from app.school.models import EnrollmentVerificationRequest
+from app.school.provider import MockNationalStudentClearinghouseProvider
 
 client = TestClient(app)
 
 
-def test_active_student_is_verified() -> None:
-    response = client.post(
-        "/api/school/verify",
-        json={
-            "first_name": " marco ",
-            "middle_name": "Reed",
-            "last_name": "AMMERMAN",
-            "date_of_birth": "1999-01-01",
+def demo_request(**overrides: object) -> dict[str, object]:
+    request: dict[str, object] = {
+        "schoolId": "austin-community-college",
+        "identity": {
+            "firstName": "MARCO",
+            "lastName": "AMMERMAN",
+            "dateOfBirth": "1999-01-01",
         },
-    )
+    }
+    request.update(overrides)
+    return request
+
+
+def test_demo_acc_enrollment_is_verified() -> None:
+    response = client.post("/api/school/verify", json=demo_request())
 
     assert response.status_code == 200
-    assert response.json() == {
-        "verified": True,
-        "status": "verified",
-        "school": "Austin Community College",
-        "source": "ACC Demo Connection",
-        "enrollment_status": "Currently enrolled",
-        "program": "Computer Science",
-        "expected_completion_date": "2027-08-31",
+    result = response.json()
+    assert result["provider"] == "national_student_clearinghouse"
+    assert result["school"] == "Austin Community College"
+    assert result["enrollmentStatus"] == "Currently Enrolled"
+    assert result["verified"] is True
+    assert result["verifiedAt"]
+    assert result["demo"] is True
+    assert set(result) == {
+        "provider",
+        "school",
+        "enrollmentStatus",
+        "verified",
+        "verifiedAt",
+        "demo",
     }
 
 
-def test_inactive_student_is_not_verified() -> None:
+def test_unknown_identity_is_not_verified() -> None:
     response = client.post(
         "/api/school/verify",
-        json={
-            "first_name": "JORDAN",
-            "middle_name": "LEE",
-            "last_name": "CHEN",
-            "date_of_birth": "2000-05-12",
-        },
+        json=demo_request(
+            identity={
+                "firstName": "ALEX",
+                "lastName": "RIVERA",
+                "dateOfBirth": "1998-03-04",
+            }
+        ),
     )
 
     assert response.status_code == 200
     assert response.json()["verified"] is False
-    assert response.json()["status"] == "inactive"
+    assert "enrollmentStatus" not in response.json()
 
 
-def test_unknown_student_is_not_verified() -> None:
+def test_other_supported_school_does_not_use_the_acc_demo_match() -> None:
     response = client.post(
         "/api/school/verify",
-        json={
-            "first_name": "ALEX",
-            "last_name": "RIVERA",
-            "date_of_birth": "1998-03-04",
-        },
+        json=demo_request(schoolId="texas-state-university"),
     )
 
     assert response.status_code == 200
+    assert response.json()["school"] == "Texas State University"
     assert response.json()["verified"] is False
-    assert response.json()["status"] == "no_match"
-
-
-def test_wrong_middle_name_does_not_match() -> None:
-    response = client.post(
-        "/api/school/verify",
-        json={
-            "first_name": "MARCO",
-            "middle_name": "OTHER",
-            "last_name": "AMMERMAN",
-            "date_of_birth": "1999-01-01",
-        },
-    )
-
-    assert response.json()["status"] == "no_match"
 
 
 def test_invalid_request_is_rejected() -> None:
     response = client.post(
         "/api/school/verify",
-        json={"first_name": " ", "last_name": "AMMERMAN", "date_of_birth": "not-a-date"},
+        json={
+            "schoolId": "austin-community-college",
+            "identity": {"firstName": " ", "lastName": "AMMERMAN", "dateOfBirth": "bad"},
+        },
     )
 
     assert response.status_code == 422
 
 
-def test_multiple_matching_records_are_not_verified() -> None:
-    record = StudentRecord("MARCO", "REED", "AMMERMAN", date(1999, 1, 1), True)
+def test_provider_interface_returns_demo_result() -> None:
+    provider = MockNationalStudentClearinghouseProvider()
+    request = EnrollmentVerificationRequest.model_validate(demo_request())
 
-    class DuplicateSchoolDataSource:
-        school_name = "Austin Community College"
-        source_label = "ACC Demo Connection"
+    result = asyncio.run(provider.verify_enrollment(request))
 
-        def students_born_on(self, date_of_birth: date) -> list[StudentRecord]:
-            return [record, record]
-
-    identity = PassportIdentity(
-        first_name="MARCO",
-        middle_name="REED",
-        last_name="AMMERMAN",
-        date_of_birth=date(1999, 1, 1),
-    )
-
-    result = verify_student(identity, DuplicateSchoolDataSource())
-
-    assert result.verified is False
-    assert result.status == "ambiguous"
+    assert result.verified is True
+    assert result.demo is True

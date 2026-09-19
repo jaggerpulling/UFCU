@@ -17,9 +17,9 @@ export function SourceBadge({ variant, label }: SourceBadgeProps) {
   const style = variants[variant];
 
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-caption font-semibold", style.className)}>
-      <span aria-hidden="true">{style.icon}</span>
-      {label ?? style.label}
+    <span className={cn("inline-flex max-w-full items-start gap-1.5 rounded-full px-3 py-1 text-left text-caption font-semibold", style.className)}>
+      <span className="shrink-0" aria-hidden="true">{style.icon}</span>
+      <span className="min-w-0 break-words">{label ?? style.label}</span>
     </span>
   );
 }
