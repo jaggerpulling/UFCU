@@ -1,4 +1,3 @@
-import { syntheticIdentity } from "@/features/passport/mock-passport-provider";
 import type { PassportIdentity } from "@/features/passport/passport-provider";
 import type { NovaReport } from "@/features/credit/nova-api";
 import type { SchoolVerificationResult } from "@/features/school/school-verification";
@@ -20,34 +19,46 @@ export interface MemberProfile {
   goals: string[];
 }
 
+export const financialGoals = [
+  { id: "everyday_banking", label: "Everyday banking" },
+  { id: "build_credit", label: "Build U.S. credit" },
+  { id: "save_for_tuition", label: "Save for tuition" },
+  { id: "emergency_fund", label: "Build an emergency fund" },
+  { id: "finance_car", label: "Finance a car" },
+  { id: "other", label: "Other" },
+] as const;
+
+export type FinancialGoalId = (typeof financialGoals)[number]["id"];
+
+export interface SavedFinancialGoals {
+  selected: FinancialGoalId[];
+  other?: string;
+}
+
+export type MembershipRequirementId = "identity" | "student" | "required" | "financial";
+
+export interface MembershipRequirement {
+  id: MembershipRequirementId;
+  label: string;
+  complete: boolean;
+  required: boolean;
+}
+
+export interface MembershipReadiness {
+  requirements: MembershipRequirement[];
+  completedCount: number;
+  totalCount: number;
+  completionPercent: number;
+  isReady: boolean;
+}
+
 const storageKeys = {
   passport: "verified.passport.identity",
   school: "verified.school.verification",
   nova: "verified.nova.report",
   novaSkipped: "verified.nova.skipped",
+  goals: "verified.profile.goals",
 } as const;
-
-const demoSchoolResult: SchoolVerificationResult = {
-  verified: true,
-  status: "verified",
-  school: "Austin Community College",
-  source: "ACC Demo Connection",
-  enrollment_status: "Currently enrolled",
-  program: "Computer Science",
-  expected_completion_date: "2027-08-31",
-};
-
-const demoNovaReport: NovaReport = {
-  status: "SUCCESS",
-  creditHistory: {
-    historyLengthYears: 4,
-    activeAccounts: 3,
-    paymentHistory: "Strong",
-    reportedDelinquencies: 0,
-  },
-  isSynthetic: true,
-  source: "Nova Credit — Demo Data",
-};
 
 export function savePassportResult(identity: PassportIdentity) {
   write(storageKeys.passport, identity);
@@ -71,31 +82,53 @@ export function clearNovaSkipped() {
   sessionStorage.removeItem(storageKeys.novaSkipped);
 }
 
-export function getMemberProfile(): MemberProfile {
-  const passport = read<PassportIdentity>(storageKeys.passport) ?? syntheticIdentity;
-  const school = read<SchoolVerificationResult>(storageKeys.school) ?? demoSchoolResult;
-  const skippedNova = sessionStorage.getItem(storageKeys.novaSkipped) === "true";
-  const nova = skippedNova ? null : read<NovaReport>(storageKeys.nova) ?? demoNovaReport;
+export function saveFinancialGoals(goals: SavedFinancialGoals) {
+  const selected = financialGoals
+    .map((goal) => goal.id)
+    .filter((goal) => goals.selected.includes(goal));
+  const other = goals.other?.trim();
+  write(storageKeys.goals, { selected, ...(other ? { other } : {}) });
+}
 
-  return buildMemberProfile(passport, school, nova, skippedNova);
+export function getFinancialGoals(): SavedFinancialGoals {
+  const stored = read<SavedFinancialGoals>(storageKeys.goals);
+  if (!stored || !Array.isArray(stored.selected)) return { selected: [] };
+
+  const validGoals = new Set<FinancialGoalId>(financialGoals.map((goal) => goal.id));
+  return {
+    selected: stored.selected.filter((goal): goal is FinancialGoalId => validGoals.has(goal)),
+    ...(typeof stored.other === "string" && stored.other.trim() ? { other: stored.other.trim() } : {}),
+  };
+}
+
+export function getMemberProfile(): MemberProfile {
+  const passport = read<PassportIdentity>(storageKeys.passport);
+  const school = read<SchoolVerificationResult>(storageKeys.school);
+  const skippedNova = sessionStorage.getItem(storageKeys.novaSkipped) === "true";
+  const nova = skippedNova ? null : read<NovaReport>(storageKeys.nova);
+
+  const profile = buildMemberProfile(passport, school, nova, skippedNova);
+  profile.goals = getFinancialGoals().selected;
+  return profile;
 }
 
 export function buildMemberProfile(
-  passport: PassportIdentity,
-  school: SchoolVerificationResult,
+  passport: PassportIdentity | null,
+  school: SchoolVerificationResult | null,
   nova: NovaReport | null,
   skippedNova = false,
 ): MemberProfile {
   const passportSource = "Passport chip · Demo scan";
-  const identity: MemberProfile["identity"] = {
-    name: verifiedField(passport.fullName, "passport", passportSource),
-    dateOfBirth: verifiedField(passport.dateOfBirth, "passport", passportSource),
-    nationality: verifiedField(passport.nationality, "passport", passportSource),
-    passport: verifiedField(`${passport.documentType} · ${passport.passportNumber}`, "passport", passportSource),
-  };
+  const identity: MemberProfile["identity"] = {};
+  if (passport) {
+    identity.name = verifiedField(passport.fullName, "passport", passportSource);
+    identity.dateOfBirth = verifiedField(passport.dateOfBirth, "passport", passportSource);
+    identity.nationality = verifiedField(passport.nationality, "passport", passportSource);
+    identity.passport = verifiedField(`${passport.documentType} · ${passport.passportNumber}`, "passport", passportSource);
+  }
 
   const student: MemberProfile["student"] = {};
-  if (school.verified) {
+  if (school?.verified) {
     student.school = verifiedField(school.school, "school", school.source);
     student.enrollment = verifiedField(school.enrollment_status ?? "Currently enrolled", "school", school.source);
     if (school.program) student.program = verifiedField(school.program, "school", school.source);
@@ -136,8 +169,39 @@ export function buildMemberProfile(
   return { identity, student, finances, goals: [] };
 }
 
+export function calculateMembershipReadiness(profile: MemberProfile): MembershipReadiness {
+  const identityComplete = fieldsAreVerified(profile.identity, ["name", "dateOfBirth", "nationality", "passport"]);
+  const studentComplete = fieldsAreVerified(profile.student, ["school", "enrollment"]);
+  const requiredComplete = identityComplete && studentComplete;
+  const creditHistory = profile.finances.internationalCreditHistory;
+  const financialComplete = Boolean(creditHistory?.verified && creditHistory.value === true);
+
+  const requirements: MembershipRequirement[] = [
+    { id: "identity", label: "Identity established", complete: identityComplete, required: true },
+    { id: "student", label: "Student information verified", complete: studentComplete, required: true },
+    { id: "required", label: "Required information complete", complete: requiredComplete, required: true },
+    { id: "financial", label: "Financial profile connected", complete: financialComplete, required: false },
+  ];
+  const completedCount = requirements.filter((requirement) => requirement.complete).length;
+
+  return {
+    requirements,
+    completedCount,
+    totalCount: requirements.length,
+    completionPercent: Math.round((completedCount / requirements.length) * 100),
+    isReady: requiredComplete,
+  };
+}
+
 function verifiedField(value: ProfileField["value"], source: Source, sourceLabel: string): ProfileField {
   return { value, source, sourceLabel, verified: true };
+}
+
+function fieldsAreVerified(fields: Record<string, ProfileField>, requiredKeys: string[]) {
+  return requiredKeys.every((key) => {
+    const field = fields[key];
+    return Boolean(field?.verified && field.value !== "");
+  });
 }
 
 function readCreditHistory(report: NovaReport) {
