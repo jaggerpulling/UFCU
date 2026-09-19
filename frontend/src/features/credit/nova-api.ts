@@ -40,10 +40,10 @@ export function initializeNova(): Promise<NovaInitialization> {
     body: JSON.stringify({
       consent: true,
       prefill: {
-        firstName: "Maya",
-        lastName: "Okafor",
-        dob: "2004-02-14",
-        email: "maya.okafor@example.com",
+        firstName: "Marco",
+        lastName: "Ammerman",
+        dob: "1999-01-01",
+        email: "marco.ammerman@example.com",
         city: "Austin",
       },
       country: "NGA",

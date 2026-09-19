@@ -26,6 +26,9 @@ def test_active_student_is_verified() -> None:
         "status": "verified",
         "school": "Austin Community College",
         "source": "ACC Demo Connection",
+        "enrollment_status": "Currently enrolled",
+        "program": "Computer Science",
+        "expected_completion_date": "2027-08-31",
     }
 
 

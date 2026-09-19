@@ -7,6 +7,9 @@ export interface SchoolVerificationResult {
   status: SchoolVerificationStatus;
   school: string;
   source: string;
+  enrollment_status?: string | null;
+  program?: string | null;
+  expected_completion_date?: string | null;
 }
 
 export async function verifySchoolEnrollment(identity: PassportIdentity, signal?: AbortSignal) {

@@ -18,7 +18,15 @@ class MockSchoolDataSource:
     source_label = "ACC Demo Connection"
 
     _students = (
-        StudentRecord("MARCO", "REED", "AMMERMAN", date(1999, 1, 1), True),
+        StudentRecord(
+            "MARCO",
+            "REED",
+            "AMMERMAN",
+            date(1999, 1, 1),
+            True,
+            "Computer Science",
+            date(2027, 8, 31),
+        ),
         StudentRecord("JORDAN", "LEE", "CHEN", date(2000, 5, 12), False),
     )
 

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { routePaths } from "@/app/routes";
 import { Button } from "@/components";
 import { initializeNova } from "@/features/credit/nova-api";
+import { clearNovaSkipped, markNovaSkipped } from "@/features/profile/member-profile";
 
 type View = "question" | "consent";
 
@@ -17,6 +18,7 @@ export function CreditPage() {
     setLoading(true);
     setError(null);
     try {
+      clearNovaSkipped();
       const initialization = await initializeNova();
       sessionStorage.setItem("verified.nova.initialization", JSON.stringify(initialization));
       navigate(routePaths.creditConnection);
@@ -87,7 +89,7 @@ export function CreditPage() {
 
       <div className="sticky bottom-0 bg-canvas pb-2 pt-4">
         <Button fullWidth onClick={() => setView("consent")}>Yes, connect my history</Button>
-        <Button className="mt-3" variant="secondary" fullWidth onClick={() => navigate(routePaths.profile)}>No / Skip for now</Button>
+        <Button className="mt-3" variant="secondary" fullWidth onClick={() => { markNovaSkipped(); navigate(routePaths.profile); }}>No / Skip for now</Button>
       </div>
     </section>
   );

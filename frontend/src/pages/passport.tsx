@@ -6,6 +6,7 @@ import { Button, SourceBadge } from "@/components";
 import { MockPassportProvider } from "@/features/passport/mock-passport-provider";
 import type { PassportIdentity, PassportScanProgress } from "@/features/passport/passport-provider";
 import { PassportVisual } from "@/features/passport/passport-visual";
+import { savePassportResult } from "@/features/profile/member-profile";
 
 type ViewState = "ready" | "scanning" | "complete" | "error";
 
@@ -30,6 +31,7 @@ export function PassportPage() {
 
     try {
       const result = await passportProvider.scan({ signal: controller.signal, onProgress: setProgress });
+      savePassportResult(result);
       setIdentity(result);
       setViewState("complete");
     } catch (error) {

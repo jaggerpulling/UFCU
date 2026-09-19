@@ -34,6 +34,14 @@ def verify_student(
         return SchoolVerificationResult(verified=False, status="no_match", **source)
     if len(matches) > 1:
         return SchoolVerificationResult(verified=False, status="ambiguous", **source)
-    if not matches[0].actively_enrolled:
+    student = matches[0]
+    if not student.actively_enrolled:
         return SchoolVerificationResult(verified=False, status="inactive", **source)
-    return SchoolVerificationResult(verified=True, status="verified", **source)
+    return SchoolVerificationResult(
+        verified=True,
+        status="verified",
+        enrollment_status="Currently enrolled",
+        program=student.program,
+        expected_completion_date=student.expected_completion_date,
+        **source,
+    )

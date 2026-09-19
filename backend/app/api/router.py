@@ -30,7 +30,12 @@ async def health_check() -> HealthResponse:
     return HealthResponse(status="ok", service="verified-api")
 
 
-@router.post("/school/verify", response_model=SchoolVerificationResult, tags=["school"])
+@router.post(
+    "/school/verify",
+    response_model=SchoolVerificationResult,
+    response_model_exclude_none=True,
+    tags=["school"],
+)
 def verify_school_enrollment(
     identity: PassportIdentity,
     school_data: SchoolDataSource = Depends(get_school_data_source),

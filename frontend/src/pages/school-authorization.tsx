@@ -5,6 +5,7 @@ import { routePaths } from "@/app/routes";
 import { Button, SourceBadge } from "@/components";
 import { syntheticIdentity } from "@/features/passport/mock-passport-provider";
 import { verifySchoolEnrollment, type SchoolVerificationResult } from "@/features/school/school-verification";
+import { saveSchoolResult } from "@/features/profile/member-profile";
 
 type ViewState = "consent" | "verifying" | "complete" | "not-verified" | "error";
 
@@ -28,6 +29,7 @@ export function SchoolAuthorizationPage() {
         verifySchoolEnrollment(syntheticIdentity, controller.signal),
         wait(900, controller.signal),
       ]);
+      if (verificationResult.verified) saveSchoolResult(verificationResult);
       setResult(verificationResult);
       setViewState(verificationResult.verified ? "complete" : "not-verified");
     } catch (error) {
@@ -123,11 +125,17 @@ function VerificationComplete({ result, onContinue }: { result: SchoolVerificati
           <dl className="divide-y divide-primary-subtle px-5">
             <div className="flex items-center justify-between gap-4 py-4">
               <dt className="text-body-sm text-mute">Enrollment</dt>
-              <dd className="font-data text-data-sm text-positive">✓ Currently enrolled</dd>
+              <dd className="font-data text-data-sm text-positive">✓ {result.enrollment_status ?? "Currently enrolled"}</dd>
             </div>
             <div className="flex items-center justify-between gap-4 py-4">
-              <dt className="text-body-sm text-mute">Student</dt>
-              <dd className="text-right font-data text-data-sm text-primary">{syntheticIdentity.fullName}</dd>
+              <dt className="text-body-sm text-mute">Program</dt>
+              <dd className="text-right font-data text-data-sm text-primary">{result.program ?? "Computer Science"}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-4">
+              <dt className="text-body-sm text-mute">Expected completion</dt>
+              <dd className="text-right font-data text-data-sm text-primary">
+                {formatSchoolDate(result.expected_completion_date ?? "2027-08-31")}
+              </dd>
             </div>
           </dl>
         </div>
@@ -140,6 +148,11 @@ function VerificationComplete({ result, onContinue }: { result: SchoolVerificati
       </div>
     </section>
   );
+}
+
+function formatSchoolDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${value}T00:00:00Z`));
 }
 
 function VerificationIssue({ result, onRetry }: { result: SchoolVerificationResult; onRetry: () => void }) {

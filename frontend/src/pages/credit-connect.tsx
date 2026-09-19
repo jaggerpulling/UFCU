@@ -11,6 +11,7 @@ import {
   type NovaReport,
 } from "@/features/credit/nova-api";
 import { mountNovaConnect } from "@/features/credit/nova-connect";
+import { saveNovaResult } from "@/features/profile/member-profile";
 
 type ViewState = "connecting" | "widget" | "processing" | "complete" | "error";
 const terminalFailures = new Set(["ERROR", "EXPIRED", "NOT_AUTHENTICATED", "NOT_FOUND"]);
@@ -50,7 +51,7 @@ export function CreditConnectPage() {
         setMessage("Building your VERIFIED profile…");
         const result = await getNovaReport(publicToken, controller.signal);
         setReport(result);
-        sessionStorage.setItem("verified.nova.report", JSON.stringify(result));
+        saveNovaResult(result);
         setViewState("complete");
         return;
       }

@@ -21,6 +21,8 @@ class StudentRecord:
     last_name: str
     date_of_birth: date
     actively_enrolled: bool
+    program: str | None = None
+    expected_completion_date: date | None = None
 
 
 class SchoolVerificationResult(BaseModel):
@@ -28,3 +30,6 @@ class SchoolVerificationResult(BaseModel):
     status: Literal["verified", "inactive", "no_match", "ambiguous"]
     school: str
     source: str
+    enrollment_status: str | None = None
+    program: str | None = None
+    expected_completion_date: date | None = None
