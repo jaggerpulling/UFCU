@@ -48,6 +48,10 @@ export function CreditPage() {
       <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
         <div className="flex-1">
           <p className="text-caption font-semibold uppercase tracking-[0.16em] text-mute">Financial history · Consent</p>
+          <div className="mt-5 rounded-lg border border-primary-subtle bg-white p-4">
+            <img src="/nova-credit-logo.png" alt="Nova Credit" className="mx-auto h-14 w-auto object-contain" />
+            <p className="mt-2 text-center text-caption font-semibold uppercase tracking-[0.14em] text-mute">Nova Credit × UFCU</p>
+          </div>
           <h1 className="mt-3 font-display text-display-md text-primary">Connect your international credit history?</h1>
           <p className="mt-3 text-body-md text-body">
             With your permission, we’ll securely ask Nova Credit for eligible credit history from your home country.
@@ -90,15 +94,16 @@ export function CreditPage() {
         <h1 className="mt-3 font-display text-display-md text-primary">Do you have credit history outside the United States?</h1>
         <p className="mt-3 text-body-md text-body">Moving countries shouldn’t mean leaving your financial history behind.</p>
 
-        <div className="relative my-10 grid min-h-52 place-items-center" aria-hidden="true">
-          <div className="absolute h-1 w-44 bg-primary-subtle" />
-          <div className="absolute left-6 grid size-24 place-items-center rounded-full bg-primary text-white shadow-lg">
-            <span className="font-display text-3xl">◎</span>
-          </div>
-          <div className="absolute right-6 grid size-24 place-items-center rounded-full border-4 border-secondary-subtle bg-white text-secondary shadow-lg">
-            <span className="text-3xl">★</span>
-          </div>
-          <span className="relative rounded-full bg-positive-subtle px-3 py-1 text-caption font-semibold text-positive">Secure connection</span>
+        <div className="my-7 rounded-lg border border-primary-subtle bg-white p-5">
+          <img src="/nova-credit-logo.png" alt="Nova Credit" className="mx-auto h-16 w-auto object-contain" />
+          <p className="mt-3 text-center text-caption font-semibold uppercase tracking-[0.14em] text-mute">Nova Credit × UFCU</p>
+        </div>
+
+        <div className="rounded-lg bg-canvas-soft p-5 text-body-sm text-body">
+          <p className="font-semibold text-primary">How it works</p>
+          <p className="mt-1">Nova Credit can retrieve eligible credit history from your home country and create a Credit Passport for UFCU.</p>
+          <p className="mt-4 font-semibold text-primary">Why it helps</p>
+          <p className="mt-1">It can help UFCU understand your established credit history without making you start from zero in the U.S.</p>
         </div>
       </div>
 
