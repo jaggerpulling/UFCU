@@ -4,7 +4,14 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { routePaths } from "@/app/routes";
 import { Button } from "@/components";
 import { initializeNova } from "@/features/credit/nova-api";
-import { clearNovaResult, clearNovaSkipped, getMemberProfile, markNovaSkipped } from "@/features/profile/member-profile";
+import {
+  clearNovaResult,
+  clearNovaSkipped,
+  getMemberProfile,
+  getPassportResult,
+  markNovaSkipped,
+  wasSchoolSkipped,
+} from "@/features/profile/member-profile";
 import { useScrollReset } from "@/lib/use-scroll-reset";
 
 type View = "question" | "consent";
@@ -14,7 +21,9 @@ export function CreditPage() {
   const [view, setView] = useState<View>("question");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [canStart] = useState(() => Object.keys(getMemberProfile().student).length > 0);
+  const [canStart] = useState(() => Boolean(getPassportResult()) && (
+    Object.keys(getMemberProfile().student).length > 0 || wasSchoolSkipped()
+  ));
   useScrollReset(view);
 
   async function consentAndConnect() {

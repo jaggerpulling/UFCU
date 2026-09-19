@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 import { routePaths } from "@/app/routes";
 import { Button, SourceBadge } from "@/components";
-import { getMemberProfile, type ProfileField } from "@/features/profile/member-profile";
+import { getMemberProfile, wasSchoolSkipped, type ProfileField } from "@/features/profile/member-profile";
 
 const fieldLabels: Record<string, string> = {
   name: "Name",
@@ -32,7 +32,9 @@ export function ProfilePage() {
       .map((field) => field.source),
   ).size;
   if (Object.keys(profile.identity).length === 0) return <Navigate to={routePaths.passport} replace />;
-  if (Object.keys(profile.student).length === 0) return <Navigate to={routePaths.school} replace />;
+  if (Object.keys(profile.student).length === 0 && !wasSchoolSkipped()) {
+    return <Navigate to={routePaths.school} replace />;
+  }
 
   return (
     <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
@@ -58,7 +60,11 @@ export function ProfilePage() {
 
         <div className="mt-7 space-y-5">
           <ProfileSection title="Identity" description="Established from your passport" fields={profile.identity} />
-          <ProfileSection title="Student" description="Confirmed with your school" fields={profile.student} />
+          <ProfileSection
+            title="Student"
+            description={Object.keys(profile.student).length > 0 ? "Confirmed with your permission" : "Not verified — your choice"}
+            fields={profile.student}
+          />
           <ProfileSection
             title="Financial history"
             description={profile.finances.internationalCreditHistory?.value === false ? "Not connected — your choice" : "Connected with your permission"}

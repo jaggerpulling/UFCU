@@ -1,6 +1,6 @@
 import type { PassportIdentity } from "@/features/passport/passport-provider";
 import type { NovaReport } from "@/features/credit/nova-api";
-import type { SchoolVerificationResult } from "@/features/school/school-verification";
+import type { EnrollmentVerificationResult } from "@/features/school/school-verification";
 
 export type Source = "passport" | "school" | "nova_credit" | "self_reported" | "inferred" | "demo";
 
@@ -55,6 +55,7 @@ export interface MembershipReadiness {
 const storageKeys = {
   passport: "verified.passport.identity",
   school: "verified.school.verification",
+  schoolSkipped: "verified.school.skipped",
   nova: "verified.nova.report",
   novaSkipped: "verified.nova.skipped",
   goals: "verified.profile.goals",
@@ -83,20 +84,46 @@ export function getPassportResult(): PassportIdentity | null {
     : null;
 }
 
-export function saveSchoolResult(result: SchoolVerificationResult) {
+export function saveSchoolResult(result: EnrollmentVerificationResult) {
   write(storageKeys.school, result);
+  remove(storageKeys.schoolSkipped);
 }
 
-export function getSchoolResult(): SchoolVerificationResult | null {
-  const value = read<SchoolVerificationResult>(storageKeys.school);
+export function getSchoolResult(): EnrollmentVerificationResult | null {
+  const value = read<EnrollmentVerificationResult>(storageKeys.school);
   return value
     && typeof value === "object"
     && typeof value.verified === "boolean"
-    && typeof value.status === "string"
     && typeof value.school === "string"
-    && typeof value.source === "string"
+    && value.provider === "national_student_clearinghouse"
+    && value.demo === true
     ? value
     : null;
+}
+
+export function clearSchoolResult() {
+  remove(storageKeys.school);
+}
+
+export function markSchoolSkipped() {
+  remove(storageKeys.school);
+  try {
+    sessionStorage.setItem(storageKeys.schoolSkipped, "true");
+  } catch {
+    // Storage can be unavailable in privacy-restricted browsing contexts.
+  }
+}
+
+export function clearSchoolSkipped() {
+  remove(storageKeys.schoolSkipped);
+}
+
+export function wasSchoolSkipped() {
+  try {
+    return sessionStorage.getItem(storageKeys.schoolSkipped) === "true";
+  } catch {
+    return false;
+  }
 }
 
 export function saveNovaResult(report: NovaReport) {
@@ -128,6 +155,7 @@ export function clearNovaSkipped() {
 
 export function clearOnboardingData() {
   Object.values(storageKeys).forEach(remove);
+  remove("verified.school.selected");
   remove("verified.nova.initialization");
 }
 
@@ -168,7 +196,7 @@ export function getMemberProfile(): MemberProfile {
 
 export function buildMemberProfile(
   passport: PassportIdentity | null,
-  school: SchoolVerificationResult | null,
+  school: EnrollmentVerificationResult | null,
   nova: NovaReport | null,
   skippedNova = false,
 ): MemberProfile {
@@ -183,12 +211,13 @@ export function buildMemberProfile(
 
   const student: MemberProfile["student"] = {};
   if (school?.verified) {
-    student.school = verifiedField(school.school, "school", school.source);
-    student.enrollment = verifiedField(school.enrollment_status ?? "Currently enrolled", "school", school.source);
-    if (school.program) student.program = verifiedField(school.program, "school", school.source);
-    if (school.expected_completion_date) {
-      student.programEnd = verifiedField(school.expected_completion_date, "school", school.source);
-    }
+    const sourceLabel = "National Student Clearinghouse — Demo Verification";
+    student.school = verifiedField(school.school, "school", sourceLabel);
+    student.enrollment = verifiedField(
+      school.enrollmentStatus ?? "Currently Enrolled",
+      "school",
+      sourceLabel,
+    );
   }
 
   const finances: MemberProfile["finances"] = {};

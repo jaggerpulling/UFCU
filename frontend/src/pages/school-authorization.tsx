@@ -2,9 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import { routePaths } from "@/app/routes";
-import { Button, SourceBadge } from "@/components";
-import { verifySchoolEnrollment, type SchoolVerificationResult } from "@/features/school/school-verification";
-import { getPassportResult, saveSchoolResult } from "@/features/profile/member-profile";
+import { Button } from "@/components";
+import {
+  getPassportResult,
+  markSchoolSkipped,
+  saveSchoolResult,
+} from "@/features/profile/member-profile";
+import {
+  buildEnrollmentVerificationRequest,
+  getSelectedSchool,
+  studentVerificationProvider,
+  type EnrollmentVerificationResult,
+} from "@/features/school/school-verification";
 import { useScrollReset } from "@/lib/use-scroll-reset";
 
 type ViewState = "consent" | "verifying" | "complete" | "not-verified" | "error";
@@ -13,13 +22,15 @@ export function SchoolAuthorizationPage() {
   const navigate = useNavigate();
   const abortController = useRef<AbortController | null>(null);
   const [identity] = useState(getPassportResult);
+  const [school] = useState(getSelectedSchool);
   const [viewState, setViewState] = useState<ViewState>("consent");
-  const [result, setResult] = useState<SchoolVerificationResult | null>(null);
+  const [result, setResult] = useState<EnrollmentVerificationResult | null>(null);
   useScrollReset(viewState);
 
   useEffect(() => () => abortController.current?.abort(), []);
 
   async function startVerification() {
+    if (!identity || !school) return;
     abortController.current?.abort();
     const controller = new AbortController();
     abortController.current = controller;
@@ -28,7 +39,10 @@ export function SchoolAuthorizationPage() {
 
     try {
       const [verificationResult] = await Promise.all([
-        verifySchoolEnrollment(identity!, controller.signal),
+        studentVerificationProvider.verifyEnrollment(
+          buildEnrollmentVerificationRequest(school, identity),
+          controller.signal,
+        ),
         wait(900, controller.signal),
       ]);
       if (verificationResult.verified) saveSchoolResult(verificationResult);
@@ -40,38 +54,59 @@ export function SchoolAuthorizationPage() {
     }
   }
 
-  if (!identity) return <Navigate to={routePaths.passport} replace />;
+  function skipVerification() {
+    markSchoolSkipped();
+    navigate(routePaths.credit);
+  }
 
+  if (!identity) return <Navigate to={routePaths.passport} replace />;
+  if (!school) return <Navigate to={routePaths.school} replace />;
   if (viewState === "verifying") return <Verifying />;
   if (viewState === "complete" && result) {
     return <VerificationComplete result={result} onContinue={() => navigate(routePaths.credit)} />;
   }
   if (viewState === "not-verified" && result) {
-    return <VerificationIssue result={result} onRetry={startVerification} />;
+    return <VerificationIssue onRetry={startVerification} onSkip={skipVerification} />;
   }
+
+  const requestedInformation = [
+    {
+      label: "Identity matching information needed for the verification request",
+      detail: "Name and date of birth from your established identity",
+    },
+    { label: "School", detail: school.name },
+    { label: "Enrollment status", detail: "Whether you are currently enrolled" },
+  ];
 
   return (
     <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
       <div className="flex-1">
-        <p className="text-caption font-semibold uppercase tracking-[0.16em] text-mute">Austin Community College</p>
-        <h1 className="mt-3 font-display text-display-md text-primary">Allow enrollment verification</h1>
-        <p className="mt-3 text-body-md text-body">VERIFIED is requesting permission to confirm:</p>
+        <p className="text-caption font-semibold uppercase tracking-[0.16em] text-mute">{school.name}</p>
+        <h1 className="mt-3 font-display text-display-md text-primary">Verify your enrollment</h1>
+        <p className="mt-3 text-body-md text-body">
+          With your permission, VERIFIED can request enrollment verification through National Student Clearinghouse.
+        </p>
 
-        <ul className="mt-7 space-y-3 rounded-lg bg-canvas-soft p-5">
-          {["Your enrollment status", "Your school name", "That your identity matches the student record"].map((item) => (
-            <li key={item} className="flex items-start gap-3 text-body-sm text-primary">
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-positive-subtle font-semibold text-positive" aria-hidden="true">
-                ✓
-              </span>
-              <span className="pt-0.5">{item}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-7 overflow-hidden rounded-lg border border-primary-subtle bg-canvas">
+          <p className="bg-canvas-soft px-5 py-4 font-semibold text-primary">What will be requested</p>
+          <ul className="divide-y divide-primary-subtle px-5">
+            {requestedInformation.map((item) => (
+              <li key={item.label} className="flex gap-3 py-4">
+                <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full bg-positive-subtle text-sm font-semibold text-positive" aria-hidden="true">
+                  ✓
+                </span>
+                <span>
+                  <span className="block text-body-sm font-semibold text-primary">{item.label}</span>
+                  <span className="mt-1 block text-caption text-mute">{item.detail}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-        <div className="mt-5 rounded-md border border-primary-subtle p-4">
-          <p className="text-body-sm font-semibold text-primary">Identity being matched</p>
-          <p className="mt-1 font-data text-data-sm text-body">{identity.fullName}</p>
-          <p className="mt-1 font-data text-data-sm text-mute">Born {formatIdentityDate(identity.dateOfBirth)}</p>
+        <div className="mt-5 flex gap-3 rounded-md bg-positive-subtle p-4 text-body-sm text-primary">
+          <LockIcon />
+          <p>This one-time request does not give VERIFIED unrestricted access to education records. No school username or password is requested.</p>
         </div>
 
         {viewState === "error" ? (
@@ -83,11 +118,11 @@ export function SchoolAuthorizationPage() {
 
       <div className="sticky bottom-0 mt-7 bg-canvas pb-2 pt-4">
         <Button fullWidth onClick={startVerification}>
-          {viewState === "error" ? "Try again" : "Allow and continue"}
+          {viewState === "error" ? "Try again" : "Verify enrollment"}
         </Button>
-        <button className="mt-3 min-h-touch w-full text-body-sm font-semibold text-primary" onClick={() => navigate(routePaths.school)}>
-          Cancel
-        </button>
+        <Button className="mt-3" variant="secondary" fullWidth onClick={skipVerification}>
+          Skip for now
+        </Button>
       </div>
     </section>
   );
@@ -98,54 +133,53 @@ function Verifying() {
     <section className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center" aria-live="polite">
       <div className="relative grid size-24 place-items-center">
         <span className="absolute size-20 animate-ping rounded-full bg-secondary-subtle opacity-60" />
-        <span className="relative grid size-16 place-items-center rounded-full bg-primary text-xl font-semibold text-white">A</span>
+        <span className="relative grid size-16 place-items-center rounded-full bg-primary text-xl font-semibold text-white">NSC</span>
       </div>
-      <h1 className="mt-7 font-display text-display-md text-primary">Verifying student information…</h1>
-      <p className="mt-3 max-w-xs text-body-md text-body">Securely matching your passport identity with the ACC demo connection.</p>
+      <h1 className="mt-7 font-display text-display-md text-primary">Verifying with National Student Clearinghouse...</h1>
+      <p className="mt-3 max-w-xs text-body-md text-body">Checking the minimum information included in your approved request.</p>
+      <p className="mt-5 rounded-full bg-warning-subtle px-3 py-1.5 text-caption font-semibold text-warning">Demo verification</p>
     </section>
   );
 }
 
-function VerificationComplete({ result, onContinue }: { result: SchoolVerificationResult; onContinue: () => void }) {
+function VerificationComplete({
+  result,
+  onContinue,
+}: {
+  result: EnrollmentVerificationResult;
+  onContinue: () => void;
+}) {
   return (
     <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
       <div className="flex-1">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-caption font-semibold uppercase tracking-[0.16em] text-secondary-darker">Verification complete</p>
-            <h1 className="mt-2 font-display text-display-md text-primary">Student information verified</h1>
+            <h1 className="mt-2 font-display text-display-md text-primary">Enrollment verified</h1>
           </div>
           <div className="grid size-14 shrink-0 place-items-center rounded-full bg-secondary text-white verified-pop" aria-hidden="true">
             <svg className="size-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m6 12 4 4 8-9" /></svg>
           </div>
         </div>
-        <p className="mt-3 text-body-md text-body">Your enrollment was confirmed using the identity from your passport.</p>
 
-        <div className="confirmed-card mt-7 overflow-hidden rounded-lg border-2 border-secondary">
-          <div className="border-b border-primary-subtle bg-canvas-soft p-5">
-            <p className="font-semibold text-primary">{result.school}</p>
-            <div className="mt-2"><SourceBadge variant="verified" label="Enrollment verified" /></div>
-          </div>
-          <dl className="divide-y divide-primary-subtle px-5">
-            <div className="flex items-center justify-between gap-4 py-4">
-              <dt className="shrink-0 text-body-sm text-mute">Enrollment</dt>
-              <dd className="min-w-0 text-right font-data text-data-sm text-positive">✓ {result.enrollment_status ?? "Currently enrolled"}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-4">
-              <dt className="shrink-0 text-body-sm text-mute">Program</dt>
-              <dd className="min-w-0 text-right font-data text-data-sm text-primary">{result.program ?? "Computer Science"}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-4 py-4">
-              <dt className="shrink-0 text-body-sm text-mute">Expected completion</dt>
-              <dd className="min-w-0 text-right font-data text-data-sm text-primary">
-                {formatSchoolDate(result.expected_completion_date ?? "2027-08-31")}
-              </dd>
-            </div>
-          </dl>
+        <div className="confirmed-card mt-7 rounded-lg border-2 border-secondary p-5">
+          <ul className="space-y-4">
+            <li className="flex items-start gap-3 font-data text-data-md text-primary">
+              <span className="text-positive" aria-hidden="true">✓</span>
+              {result.school}
+            </li>
+            <li className="flex items-start gap-3 font-data text-data-md text-primary">
+              <span className="text-positive" aria-hidden="true">✓</span>
+              {sentenceCaseEnrollment(result.enrollmentStatus)}
+            </li>
+          </ul>
         </div>
 
-        <p className="mt-4 text-center text-caption text-mute">Source: {result.school} — {result.source}</p>
-        <p className="mt-1 text-center text-caption text-mute">Synthetic demo data · No real school account was accessed</p>
+        <div className="mt-5 rounded-lg border-2 border-warning bg-warning-subtle p-4 text-center">
+          <p className="text-caption font-semibold uppercase tracking-[0.12em] text-warning">Source</p>
+          <p className="mt-1 text-body-sm font-semibold text-primary">National Student Clearinghouse — Demo Verification</p>
+          <p className="mt-2 text-caption text-body">Synthetic response. No request was sent to NSC.</p>
+        </div>
       </div>
       <div className="sticky bottom-0 mt-7 bg-canvas pb-2 pt-4">
         <Button fullWidth onClick={onContinue}>Continue <span aria-hidden="true">→</span></Button>
@@ -154,34 +188,24 @@ function VerificationComplete({ result, onContinue }: { result: SchoolVerificati
   );
 }
 
-function formatSchoolDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
-    .format(new Date(`${value}T00:00:00Z`));
-}
-
-function formatIdentityDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
-    .format(new Date(`${value}T00:00:00Z`));
-}
-
-function VerificationIssue({ result, onRetry }: { result: SchoolVerificationResult; onRetry: () => void }) {
-  const message = result.status === "inactive"
-    ? "We found the student record, but it is not currently enrolled."
-    : result.status === "ambiguous"
-      ? "We found more than one matching student record and couldn’t verify automatically."
-      : "We couldn’t match this identity to an active student record.";
-
+function VerificationIssue({ onRetry, onSkip }: { onRetry: () => void; onSkip: () => void }) {
   return (
     <section className="flex flex-1 flex-col px-6 pb-6 pt-8">
       <div className="flex-1">
         <p className="text-caption font-semibold uppercase tracking-[0.16em] text-negative">Verification incomplete</p>
         <h1 className="mt-3 font-display text-display-md text-primary">We couldn’t verify enrollment</h1>
-        <p className="mt-3 text-body-md text-body">{message}</p>
-        <div className="mt-7 rounded-lg bg-negative-subtle p-5 text-body-sm text-negative">Status: {result.status.replace("_", " ")}</div>
+        <p className="mt-3 text-body-md text-body">The demo provider did not find a matching current enrollment. You can retry or continue without connecting it.</p>
       </div>
-      <div className="sticky bottom-0 mt-7 bg-canvas pb-2 pt-4"><Button fullWidth onClick={onRetry}>Try again</Button></div>
+      <div className="sticky bottom-0 mt-7 bg-canvas pb-2 pt-4">
+        <Button fullWidth onClick={onRetry}>Try again</Button>
+        <Button className="mt-3" variant="secondary" fullWidth onClick={onSkip}>Skip for now</Button>
+      </div>
     </section>
   );
+}
+
+function sentenceCaseEnrollment(value?: string) {
+  return value?.toLocaleLowerCase() === "currently enrolled" ? "Currently enrolled" : value ?? "Currently enrolled";
 }
 
 function wait(milliseconds: number, signal: AbortSignal) {
@@ -192,4 +216,13 @@ function wait(milliseconds: number, signal: AbortSignal) {
       reject(new DOMException("Verification cancelled", "AbortError"));
     }, { once: true });
   });
+}
+
+function LockIcon() {
+  return (
+    <svg className="mt-0.5 size-5 shrink-0 text-positive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="5" y="10" width="14" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
 }
