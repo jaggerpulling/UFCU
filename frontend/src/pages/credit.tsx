@@ -9,6 +9,7 @@ import {
   clearNovaSkipped,
   getMemberProfile,
   getPassportResult,
+  getVerifiedAddress,
   markNovaSkipped,
   wasSchoolSkipped,
 } from "@/features/profile/member-profile";
@@ -22,7 +23,7 @@ export function CreditPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canStart] = useState(() => Boolean(getPassportResult()) && (
-    Object.keys(getMemberProfile().student).length > 0 || wasSchoolSkipped()
+    Object.keys(getMemberProfile().student).length > 0 || Boolean(getVerifiedAddress()) || wasSchoolSkipped()
   ));
   useScrollReset(view);
 

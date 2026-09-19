@@ -47,14 +47,15 @@ export function SchoolPage() {
       title="Where do you attend school?"
       description="Search for and select your school. You’ll review what is requested before verification begins."
       footer={
-        <Button
-          fullWidth
-          disabled={!selected}
-          onClick={() => navigate(routePaths.schoolAuthorization)}
-        >
-          Continue
-          <span aria-hidden="true">→</span>
-        </Button>
+        <>
+          <Button fullWidth disabled={!selected} onClick={() => navigate(routePaths.schoolAuthorization)}>
+            Continue
+            <span aria-hidden="true">→</span>
+          </Button>
+          <Button className="mt-3" fullWidth variant="secondary" onClick={() => navigate(routePaths.address)}>
+            I’m not a student
+          </Button>
+        </>
       }
     >
       <label className="block">

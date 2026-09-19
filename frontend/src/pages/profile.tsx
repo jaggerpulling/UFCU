@@ -3,13 +3,17 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 import { routePaths } from "@/app/routes";
 import { Button, SourceBadge } from "@/components";
-import { getMemberProfile, wasSchoolSkipped, type ProfileField } from "@/features/profile/member-profile";
+import { getMemberProfile, getVerifiedAddress, wasSchoolSkipped, type ProfileField } from "@/features/profile/member-profile";
 
 const fieldLabels: Record<string, string> = {
   name: "Name",
   dateOfBirth: "Date of birth",
   nationality: "Nationality",
   passport: "Passport",
+  streetAddress: "Street address",
+  city: "City",
+  state: "State",
+  zipCode: "ZIP",
   school: "School",
   enrollment: "Enrollment",
   program: "Program",
@@ -32,7 +36,7 @@ export function ProfilePage() {
       .map((field) => field.source),
   ).size;
   if (Object.keys(profile.identity).length === 0) return <Navigate to={routePaths.passport} replace />;
-  if (Object.keys(profile.student).length === 0 && !wasSchoolSkipped()) {
+  if (Object.keys(profile.student).length === 0 && !getVerifiedAddress() && !wasSchoolSkipped()) {
     return <Navigate to={routePaths.school} replace />;
   }
 
@@ -154,6 +158,7 @@ function sourceName(source: ProfileField["source"]) {
   const labels: Record<ProfileField["source"], string> = {
     passport: "Passport",
     school: "School",
+    socure: "Socure",
     nova_credit: "Nova Credit",
     self_reported: "You told us",
     inferred: "Inferred",

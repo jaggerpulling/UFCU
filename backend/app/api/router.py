@@ -12,6 +12,8 @@ from app.esignature.models import (
 from app.esignature.provider import ESignatureProvider, get_esignature_provider
 from app.identity.audit import consent_audit_log
 from app.identity.models import (
+    SocureAddressVerificationRequest,
+    SocureAddressVerificationResult,
     SocureLivenessSubmissionRequest,
     SocureVerificationRequest,
     SocureVerificationResult,
@@ -67,6 +69,19 @@ async def submit_liveness_to_socure(
     # highly sensitive biometric data and exist only for this provider handoff.
     consent_audit_log.record_socure_biometric_consent()
     await provider.submit_liveness_images(request.identity, request.liveness_images)
+
+
+@router.post(
+    "/identity/socure/address/verify",
+    response_model=SocureAddressVerificationResult,
+    response_model_by_alias=True,
+    tags=["identity"],
+)
+async def verify_address_with_socure(
+    request: SocureAddressVerificationRequest,
+    provider: SocureVerificationProvider = Depends(get_socure_verification_provider),
+) -> SocureAddressVerificationResult:
+    return await provider.verify_address(request.address)
 
 
 @router.post(

@@ -69,3 +69,27 @@ class SocureVerificationResult(BaseModel):
     verified_at: datetime = Field(serialization_alias="verifiedAt")
     source: Literal["Socure — Demo Verification"]
     demo: Literal[True]
+
+
+class SocureAddressInformation(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, populate_by_name=True, extra="forbid")
+
+    street_address: str = Field(alias="streetAddress", min_length=1)
+    city: str = Field(min_length=1)
+    state: str = Field(min_length=2, max_length=2)
+    zip_code: str = Field(alias="zipCode", min_length=5, max_length=10)
+
+
+class SocureAddressVerificationRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    address: SocureAddressInformation
+
+
+class SocureAddressVerificationResult(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    verified: Literal[True]
+    verified_at: datetime = Field(serialization_alias="verifiedAt")
+    source: Literal["Socure — Demo Verification"]
+    demo: Literal[True]

@@ -178,3 +178,24 @@ def test_liveness_validation_does_not_echo_biometric_images() -> None:
 
     assert response.status_code == 422
     assert "BIOMETRIC-IMAGE-MUST-NOT-ECHO" not in response.text
+
+
+def test_demo_address_is_verified() -> None:
+    response = client.post(
+        "/api/identity/socure/address/verify",
+        json={
+            "address": {
+                "streetAddress": "123 Demo Street",
+                "city": "Austin",
+                "state": "TX",
+                "zipCode": "78701",
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["verified"] is True
+    assert result["verifiedAt"]
+    assert result["source"] == "Socure — Demo Verification"
+    assert result["demo"] is True

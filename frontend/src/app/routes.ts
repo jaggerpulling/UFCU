@@ -5,6 +5,7 @@ export const routePaths = {
   liveness: "/liveness",
   school: "/school",
   schoolAuthorization: "/school/authorize",
+  address: "/address",
   credit: "/credit",
   creditConnection: "/credit/connect",
   profile: "/profile",

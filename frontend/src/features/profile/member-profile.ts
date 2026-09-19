@@ -2,8 +2,9 @@ import type { PassportIdentity } from "@/features/passport/passport-provider";
 import type { NovaReport } from "@/features/credit/nova-api";
 import type { EnrollmentVerificationResult } from "@/features/school/school-verification";
 import { getAgreementSignature } from "@/features/esignature/esignature";
+import type { VerifiedAddress } from "@/features/address/address-verification";
 
-export type Source = "passport" | "school" | "nova_credit" | "self_reported" | "inferred" | "demo";
+export type Source = "passport" | "school" | "socure" | "nova_credit" | "self_reported" | "inferred" | "demo";
 
 export interface DemoLivenessResult {
   status: "verified_demo";
@@ -69,6 +70,7 @@ const storageKeys = {
   novaSkipped: "verified.nova.skipped",
   goals: "verified.profile.goals",
   agreement: "verified.esignature.agreement",
+  address: "verified.address.verification",
 } as const;
 
 export function saveDemoLivenessResult(result: DemoLivenessResult) {
@@ -119,6 +121,23 @@ export function getSchoolResult(): EnrollmentVerificationResult | null {
     && typeof value.school === "string"
     && value.provider === "national_student_clearinghouse"
     && value.demo === true
+    ? value
+    : null;
+}
+
+export function saveVerifiedAddress(address: VerifiedAddress) {
+  write(storageKeys.address, address);
+  markSchoolSkipped();
+}
+
+export function getVerifiedAddress(): VerifiedAddress | null {
+  const value = read<VerifiedAddress>(storageKeys.address);
+  return value
+    && typeof value.streetAddress === "string"
+    && typeof value.city === "string"
+    && typeof value.state === "string"
+    && typeof value.zipCode === "string"
+    && value.source === "Socure — Demo Verification"
     ? value
     : null;
 }
@@ -203,6 +222,7 @@ export function getFinancialGoals(): SavedFinancialGoals {
 export function getMemberProfile(): MemberProfile {
   const passport = getPassportResult();
   const school = getSchoolResult();
+  const address = getVerifiedAddress();
   let skippedNova = false;
   try {
     skippedNova = sessionStorage.getItem(storageKeys.novaSkipped) === "true";
@@ -211,7 +231,7 @@ export function getMemberProfile(): MemberProfile {
   }
   const nova = skippedNova ? null : getSavedNovaResult();
 
-  const profile = buildMemberProfile(passport, school, nova, skippedNova);
+  const profile = buildMemberProfile(passport, school, nova, skippedNova, address);
   profile.goals = getFinancialGoals().selected;
   return profile;
 }
@@ -221,6 +241,7 @@ export function buildMemberProfile(
   school: EnrollmentVerificationResult | null,
   nova: NovaReport | null,
   skippedNova = false,
+  address: VerifiedAddress | null = null,
 ): MemberProfile {
   const passportSource = "Passport chip · Demo scan";
   const identity: MemberProfile["identity"] = {};
@@ -229,6 +250,12 @@ export function buildMemberProfile(
     identity.dateOfBirth = verifiedField(passport.dateOfBirth, "passport", passportSource);
     identity.nationality = verifiedField(passport.nationality, "passport", passportSource);
     identity.passport = verifiedField(`${passport.documentType} · ${passport.passportNumber}`, "passport", passportSource);
+  }
+  if (address) {
+    identity.streetAddress = verifiedField(address.streetAddress, "socure", address.source);
+    identity.city = verifiedField(address.city, "socure", address.source);
+    identity.state = verifiedField(address.state, "socure", address.source);
+    identity.zipCode = verifiedField(address.zipCode, "socure", address.source);
   }
 
   const student: MemberProfile["student"] = {};
@@ -277,14 +304,15 @@ export function buildMemberProfile(
 export function calculateMembershipReadiness(profile: MemberProfile): MembershipReadiness {
   const identityComplete = fieldsAreVerified(profile.identity, ["name", "dateOfBirth", "nationality", "passport"]);
   const studentComplete = fieldsAreVerified(profile.student, ["school", "enrollment"]);
-  const requiredComplete = identityComplete && studentComplete;
+  const addressComplete = fieldsAreVerified(profile.identity, ["streetAddress", "city", "state", "zipCode"]);
+  const requiredComplete = identityComplete && (studentComplete || addressComplete);
   const creditHistory = profile.finances.internationalCreditHistory;
   const financialComplete = Boolean(creditHistory?.verified && creditHistory.value === true);
   const agreementComplete = getAgreementSignature()?.agreementSigned === true;
 
   const requirements: MembershipRequirement[] = [
     { id: "identity", label: "Identity established", complete: identityComplete, required: true },
-    { id: "student", label: "Student information verified", complete: studentComplete, required: true },
+    { id: "student", label: "Student information or address verified", complete: studentComplete || addressComplete, required: true },
     { id: "required", label: "Required information complete", complete: requiredComplete, required: true },
     { id: "agreement", label: "Membership agreement signed", complete: agreementComplete, required: true },
     { id: "financial", label: "Financial profile connected", complete: financialComplete, required: false },
